@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,27 +7,29 @@ const StudentDashboard = () => {
   const navigate = useNavigate();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
-  // SIMULATED DATA (Sa Phase 2, manggagaling ito sa PHP API mo)
-  const [studentInfo, setStudentInfo] = useState({
-    paymentStatus: "Unpaid", // Subukan mong gawing "Paid" para makita ang pagbabago
-    balance: "15,500.00",
-    enrollmentStatus: "Enrolled"
+  // MOCK DATA: Sa Phase 2, ito ay manggagaling sa `api/student_info.php`
+  const [studentData, setStudentData] = useState({
+    classification: "Transferee", // Values: "New Student", "Transferee", "Continuing"
+    yearLevel: "2nd Year",
+    paymentStatus: "Unpaid", // Kapag "Unpaid", naka-lock ang LMS
+    balance: "12,450.00",
+    course: "BS Information Technology"
   });
 
   const schoolName = "Colegio de San Pascual Baylon";
   const schoolAcronym = "CSPB";
 
   const handleLogout = () => {
-    if (window.confirm("Logout from CSPB Portal?")) {
+    if (window.confirm("Sigurado ka bang nais mong mag-logout sa CSPB Portal?")) {
       logout();
       navigate('/');
     }
   };
 
-  // Logic para sa pag-access ng LMS
+  // LMS Access Logic (Gatekeeper)
   const handleLMSAccess = () => {
-    if (studentInfo.paymentStatus !== "Paid") {
-      alert("⚠️ ACCESS RESTRICTED: Mangyaring makipag-ugnayan sa Cashier para sa iyong bayarin upang ma-access ang LMS.");
+    if (studentData.paymentStatus !== "Paid") {
+      alert("🛑 ACCESS DENIED: Naka-lock ang iyong LMS Classroom. Mangyaring magbayad sa Cashier upang ma-activate ang iyong account.");
     } else {
       navigate('/lms');
     }
@@ -35,23 +37,23 @@ const StudentDashboard = () => {
 
   const menuItems = [
     { name: 'Dashboard', icon: '🏠', path: '/dashboard', locked: false },
-    { name: 'LMS (E-Learning)', icon: '📚', action: handleLMSAccess, locked: studentInfo.paymentStatus !== "Paid" },
+    { name: 'LMS Classroom', icon: '📚', action: handleLMSAccess, locked: studentData.paymentStatus !== "Paid" },
     { name: 'Accounting', icon: '💳', path: '/accounting', locked: false },
     { name: 'Enrollment', icon: '📝', path: '/enrollment', locked: false },
-    { name: 'Grades', icon: '📊', path: '/grades', locked: false },
+    { name: 'Academic Grades', icon: '📊', path: '/grades', locked: false },
   ];
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col md:flex-row font-sans">
       
       {/* --- SIDEBAR --- */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#001f3f] text-white transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col">
           <div className="p-8 flex flex-col items-center border-b border-white/10">
-            <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-[#001f3f] font-black text-xl border-4 border-yellow-500 mb-3 shadow-2xl">
+            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-[#001f3f] font-black text-xl border-4 border-yellow-500 mb-4 shadow-xl">
               {schoolAcronym}
             </div>
-            <h2 className="text-center font-black text-[10px] uppercase tracking-tighter leading-tight">{schoolName}</h2>
+            <h2 className="text-center font-black text-[10px] uppercase tracking-widest leading-tight">{schoolName}</h2>
           </div>
 
           <nav className="flex-1 px-4 py-6 space-y-1">
@@ -60,21 +62,21 @@ const StudentDashboard = () => {
                 key={item.name}
                 onClick={item.action ? item.action : () => { navigate(item.path); setSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-bold text-sm transition-all group
-                  ${item.locked ? 'opacity-50 cursor-not-allowed bg-slate-800/50' : 'hover:bg-yellow-500 hover:text-[#001f3f] text-slate-300'}
+                  ${item.locked ? 'opacity-40 cursor-not-allowed grayscale' : 'hover:bg-yellow-500 hover:text-[#001f3f] text-slate-300'}
                 `}
               >
                 <div className="flex items-center gap-4">
-                  <span>{item.icon}</span>
+                  <span className="text-xl">{item.icon}</span>
                   {item.name}
                 </div>
-                {item.locked && <span className="text-xs">🔒</span>}
+                {item.locked && <span>🔒</span>}
               </button>
             ))}
           </nav>
 
           <div className="p-6 bg-black/20 border-t border-white/5">
             <button onClick={handleLogout} className="w-full py-3 rounded-xl bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest border border-red-600/30">
-              Logout
+              Logout System
             </button>
           </div>
         </div>
@@ -84,87 +86,96 @@ const StudentDashboard = () => {
       <main className="flex-1 h-screen overflow-y-auto p-6 md:p-10 pb-32">
         <div className="max-w-6xl mx-auto">
           
-          <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Header & Classification Badge */}
+          <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="bg-yellow-500 text-[#001f3f] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                  {studentData.classification}
+                </span>
+                <span className="bg-slate-200 text-slate-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                  {studentData.yearLevel}
+                </span>
+              </div>
               <h1 className="text-3xl md:text-5xl font-black text-slate-900 leading-tight">
-                Mabuhay, <span className="text-[#001f3f]">{user?.full_name?.split(' ')[0] || 'Student'}</span>!
+                Mabuhay, <span className="text-[#003366]">{user?.full_name?.split(' ')[0] || 'Student'}</span>!
               </h1>
-              <p className="text-slate-500 font-medium mt-2 italic">Student ID: {user?.student_id || '2024-0001'}</p>
+              <p className="text-slate-500 font-bold mt-1 uppercase tracking-tighter">{studentData.course}</p>
             </div>
-            
-            {/* Status Indicator */}
-            <div className={`px-6 py-3 rounded-2xl border-2 flex items-center gap-3 shadow-sm ${studentInfo.paymentStatus === "Paid" ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200 animate-pulse'}`}>
-              <span className={`w-3 h-3 rounded-full ${studentInfo.paymentStatus === "Paid" ? 'bg-green-500' : 'bg-red-500'}`}></span>
-              <span className={`text-xs font-black uppercase tracking-widest ${studentInfo.paymentStatus === "Paid" ? 'text-green-700' : 'text-red-700'}`}>
-                {studentInfo.paymentStatus === "Paid" ? "Cleared / Paid" : "Account Locked"}
-              </span>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            {/* Payment Warning Card if Unpaid */}
-            {studentInfo.paymentStatus !== "Paid" && (
-              <div className="lg:col-span-3 bg-red-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border-4 border-red-400">
-                <div className="flex items-center gap-4 text-center md:text-left">
-                  <span className="text-4xl">⚠️</span>
-                  <div>
-                    <h3 className="font-black uppercase tracking-tighter">Urgent: Financial Hold</h3>
-                    <p className="text-xs font-medium opacity-90">Hindi mo ma-aaccess ang LMS at mga lesson dahil sa iyong balance na ₱{studentInfo.balance}.</p>
-                  </div>
+            {/* Payment Warning Indicator */}
+            {studentData.paymentStatus !== "Paid" && (
+              <div className="bg-red-50 border-2 border-red-200 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
+                <div className="text-2xl">⚠️</div>
+                <div>
+                  <p className="text-[10px] font-black text-red-600 uppercase">System Status</p>
+                  <p className="text-sm font-bold text-red-800 tracking-tight text-nowrap">LMS Access is Restricted</p>
                 </div>
-                <button onClick={() => navigate('/accounting')} className="bg-white text-red-600 px-8 py-3 rounded-xl font-black text-xs uppercase hover:bg-yellow-500 hover:text-[#001f3f] transition-all">
-                  Settle Payment Now
-                </button>
               </div>
             )}
-
-            <StatCard title="Total Balance" value={`₱${studentInfo.balance}`} icon="💳" color="border-l-red-500" />
-            <StatCard title="LMS Access" value={studentInfo.paymentStatus === "Paid" ? "Active" : "Locked"} icon="🔒" color="border-l-yellow-600" />
-            <StatCard title="Enrollment" value={studentInfo.enrollmentStatus} icon="🎓" color="border-l-blue-500" />
           </div>
 
-          {/* Grid Layout for Features */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <button 
-              onClick={handleLMSAccess}
-              className={`p-10 rounded-[2.5rem] border-2 flex flex-col items-center gap-4 transition-all group
-                ${studentInfo.paymentStatus === "Paid" 
-                  ? 'bg-white border-slate-200 hover:border-blue-600 hover:shadow-2xl' 
-                  : 'bg-slate-100 border-dashed border-slate-300 opacity-60'}`}
-             >
-               <span className={`text-6xl ${studentInfo.paymentStatus === "Paid" ? 'group-hover:scale-110 transition-transform' : ''}`}>
-                 {studentInfo.paymentStatus === "Paid" ? "📖" : "🔒"}
-               </span>
-               <div className="text-center">
-                 <h3 className="font-black text-xl text-slate-800 uppercase">Go to LMS</h3>
-                 <p className="text-xs text-slate-500 font-bold mt-1">
-                   {studentInfo.paymentStatus === "Paid" ? "Start your lessons today" : "Payment Required to Unlock"}
-                 </p>
-               </div>
-             </button>
-
-             <button onClick={() => navigate('/accounting')} className="p-10 rounded-[2.5rem] bg-[#001f3f] text-white flex flex-col items-center gap-4 hover:shadow-2xl transition-all border-4 border-transparent hover:border-yellow-500 group">
-               <span className="text-6xl group-hover:rotate-12 transition-transform">💰</span>
-               <div className="text-center">
-                 <h3 className="font-black text-xl uppercase">View Accounting</h3>
-                 <p className="text-xs text-yellow-500 font-bold mt-1 tracking-widest uppercase">Check Fees & Dues</p>
-               </div>
-             </button>
+          {/* Stat Cards Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+             <StatCard title="Account Type" value={studentData.classification} icon="🆔" color="border-l-yellow-500" />
+             <StatCard title="Payment" value={studentData.paymentStatus} icon="💳" color={studentData.paymentStatus === "Paid" ? "border-l-green-500" : "border-l-red-500"} />
+             <StatCard title="Current GWA" value="1.75" icon="📈" color="border-l-blue-500" />
+             <StatCard title="Year Level" value={studentData.yearLevel} icon="🏫" color="border-l-slate-400" />
           </div>
+
+          {/* LMS Lock Alert Box */}
+          {studentData.paymentStatus !== "Paid" ? (
+            <div className="bg-white border-2 border-dashed border-slate-300 rounded-[2.5rem] p-10 text-center shadow-inner mb-10">
+              <div className="text-6xl mb-4">🔒</div>
+              <h2 className="text-2xl font-black text-slate-800 uppercase italic">LMS is Currently Locked</h2>
+              <p className="text-slate-500 max-w-md mx-auto mt-2 font-medium">
+                Hindi mo pa maaaring makita ang iyong mga subjects at lessons. Mangyaring bayaran ang balanse na 
+                <span className="text-red-600 font-bold"> ₱{studentData.balance} </span> 
+                upang ma-unlock ang iyong E-Learning account.
+              </p>
+              <button 
+                onClick={() => navigate('/accounting')}
+                className="mt-6 bg-[#003366] text-white px-10 py-4 rounded-2xl font-black text-xs uppercase hover:bg-yellow-500 hover:text-[#003366] transition-all shadow-lg"
+              >
+                Pumunta sa Accounting
+              </button>
+            </div>
+          ) : (
+            /* Dashboard Content when Paid */
+            <div className="bg-green-50 border-2 border-green-200 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center gap-8 mb-10">
+              <div className="text-6xl">🔓</div>
+              <div className="text-center md:text-left">
+                <h2 className="text-2xl font-black text-green-900 uppercase">E-Learning Active</h2>
+                <p className="text-green-700 font-medium">Lahat ng iyong subjects ay handa na para sa kasalukuyang semester.</p>
+                <button onClick={() => navigate('/lms')} className="mt-4 bg-green-600 text-white px-8 py-3 rounded-xl font-bold">Open Classroom</button>
+              </div>
+            </div>
+          )}
 
         </div>
       </main>
+
+      {/* --- MOBILE BOTTOM NAV --- */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50">
+        {menuItems.slice(0, 4).map(item => (
+          <button key={item.name} onClick={item.action ? item.action : () => navigate(item.path)} className="flex flex-col items-center">
+            <span className="text-xl">{item.icon}</span>
+            <span className="text-[8px] font-black uppercase text-slate-400">{item.name.split(' ')[0]}</span>
+          </button>
+        ))}
+      </div>
+
     </div>
   );
 };
 
 const StatCard = ({ title, value, icon, color }) => (
-  <div className={`bg-white p-6 rounded-2xl border-l-[6px] ${color} shadow-sm flex justify-between items-center`}>
-    <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-      <p className="text-xl font-black text-slate-800">{value}</p>
+  <div className={`bg-white p-5 rounded-2xl border-l-4 ${color} shadow-sm`}>
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-black text-slate-800">{value}</span>
+      <span className="text-lg opacity-30">{icon}</span>
     </div>
-    <div className="text-3xl opacity-20">{icon}</div>
   </div>
 );
 
