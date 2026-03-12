@@ -9,8 +9,13 @@ import ResetPassword from './pages/auth/ResetPassword';
 import StudentManagement from './pages/registrar/StudentManagement'; // (Palitan path depende sa kung saan mo sinave)
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentAccounting from './pages/student/StudentAccounting';
+
+// Cashier Pages
 import PaymentDashboard from './pages/cashier/PaymentDashboard';
 import CashierDashboard from './pages/cashier/CashierDashboard';
+import StudentBilling from './pages/cashier/StudentBilling';
+import Scholarships from './pages/cashier/Scholarships';
+import CollectionReports from './pages/cashier/CollectionReports';
 
 
 // Layouts
@@ -90,8 +95,13 @@ function App() {
               <AdminLayout />
             </ProtectedRoute>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
+
             <Route path="dashboard" element={<CashierDashboard />} />
+            <Route path="billing" element={<StudentBilling />} />      {/* DAGDAG ITO */}
             <Route path="payments" element={<PaymentDashboard />} />
+            <Route path="scholarships" element={<Scholarships />} />   {/* DAGDAG ITO */}
+            <Route path="reports" element={<CollectionReports />} />   {/* DAGDAG ITO */}
           </Route>
 
           {/* 5. LMS / TEACHER ROUTES (Kay Joshua) */}

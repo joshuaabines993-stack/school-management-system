@@ -22,11 +22,29 @@ const CashierDashboard = () => {
     { id: 'TXN-003', student: 'Sarah Geronimo', amount: 10000, type: 'Downpayment', date: 'Yesterday', status: 'Completed' },
   ];
 
-  const handleSearch = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Dito ilalagay ang Axios call para hanapin ang student sa database
-    console.log("Searching for Student ID:", searchQuery);
-    alert(`Searching for ${searchQuery}... (Backend not yet connected)`);
+
+    // Mas mainam na i-check muna ang values bago isend
+    console.log("Sending data:", formData);
+
+    try {
+      const response = await axios.post(
+        'http://localhost/sms-api/cashier/process_payment.php',
+        formData
+      );
+
+      if (response.status === 201 || response.data.message.includes("successfully")) {
+        alert("Success: " + response.data.message);
+        setIsModalOpen(false);
+        // Optional: i-clear ang form
+        setFormData({ studentId: '', amount: '', method: 'Cash', category: 'Tuition' });
+      }
+    } catch (error) {
+      console.error("Axios Error:", error);
+      const errorMsg = error.response?.data?.message || "Server Error. Check XAMPP and Database.";
+      alert("Error: " + errorMsg);
+    }
   };
 
   return (

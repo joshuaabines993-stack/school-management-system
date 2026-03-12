@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Settings, LogOut, Menu, X, 
-  BookOpen, CreditCard, UserCircle 
+  BookOpen, CreditCard, UserCircle,
+  Search, Receipt, History 
 } from 'lucide-react'; 
 import { useAuth } from '../context/AuthContext';
 
@@ -26,9 +27,14 @@ const AdminLayout = () => {
       { icon: <LayoutDashboard size={20} />, label: 'LMS Dashboard', path: '/teacher/dashboard' },
       { icon: <BookOpen size={20} />, label: 'My Lessons', path: '/teacher/lessons' },
     ],
+    // AdminLayout.jsx
+
     cashier: [
-      { icon: <LayoutDashboard size={20} />, label: 'Cashier Panel', path: '/cashier/dashboard' },
-      { icon: <CreditCard size={20} />, label: 'Payments', path: '/cashier/payments' },
+      { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/cashier/dashboard' },
+      { icon: <Search size={20} />, label: 'Student Billing', path: '/cashier/billing' }, // Bago
+      { icon: <CreditCard size={20} />, label: 'Process Payment', path: '/cashier/payments' },
+      { icon: <Receipt size={20} />, label: 'Scholarships', path: '/cashier/scholarships' }, // Bago
+      { icon: <History size={20} />, label: 'Collection Reports', path: '/cashier/reports' }, // Bago
     ]
   };
 
