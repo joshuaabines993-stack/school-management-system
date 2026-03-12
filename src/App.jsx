@@ -8,6 +8,7 @@ import ForgotPassword from './pages/auth/ForgotPassword'; // <-- Siguraduhin na 
 import ResetPassword from './pages/auth/ResetPassword';
 import StudentManagement from './pages/registrar/StudentManagement'; // (Palitan path depende sa kung saan mo sinave)
 import StudentDashboard from './pages/student/StudentDashboard';
+import StudentAccounting from './pages/student/StudentAccounting';
 
 // Cashier Pages
 import PaymentDashboard from './pages/cashier/PaymentDashboard';
@@ -69,7 +70,8 @@ function App() {
           <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
 
           {/* Kung gumagamit ka ng ProtectedRoute, ganito: */}
-          <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+          <Route path="student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+          <Route path="student/accounting" element={<ProtectedRoute allowedRoles={['student']}><StudentAccounting /></ProtectedRoute>} />
 
 {/* O kung basic Route lang muna: */}
 {/* <Route path="/student/dashboard" element={<StudentDashboard />} /> */}
@@ -112,7 +114,17 @@ function App() {
             <Route path="lessons" element={<div className="p-10 text-2xl font-bold">Lessons Module (Joshua)</div>} />
           </Route>
 
-          {/* 6. REGISTRAR ROUTES (Coming Soon) */}
+          {/* 6. LMS / STUDENTS ROUTES (Kay Joshua) */}
+          <Route path="/student" element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="dashboard" element={<StudentDashboard />} />
+            <Route path="accounting" element={<StudentAccounting />} />
+          </Route>
+
+          {/* 7. REGISTRAR ROUTES (Coming Soon) */}
           <Route path="/registrar" element={
             <ProtectedRoute allowedRoles={['registrar']}>
               <AdminLayout />
@@ -124,7 +136,7 @@ function App() {
             <Route path="students" element={<div className="p-10 text-2xl font-bold">Student Records (Registrar)</div>} />
           </Route>
 
-          {/* 7. FALLBACK */}
+          {/* 8. FALLBACK */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
