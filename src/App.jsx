@@ -64,9 +64,7 @@ function App() {
 
           <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
 
-          {/* Kung gumagamit ka ng ProtectedRoute, ganito: */}
-          <Route path="student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
-          <Route path="student/accounting" element={<ProtectedRoute allowedRoles={['student']}><StudentAccounting /></ProtectedRoute>} />
+
 
 {/* O kung basic Route lang muna: */}
 {/* <Route path="/student/dashboard" element={<StudentDashboard />} /> */}
