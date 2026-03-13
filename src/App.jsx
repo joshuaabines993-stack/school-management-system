@@ -138,16 +138,16 @@ function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             
             {/* Sidenav Item 1: Dashboard */}
-            <Route path="dashboard" element={<div className="p-10 text-2xl font-bold text-blue-600">Registrar Command Center</div>} />
+            <Route path="dashboard" element={<RegistrarDashboard />} />
             
             {/* Sidenav Item 2: Masterlist & Profiles (Walang enrollment details dito) */}
             <Route path="students" element={<StudentManagement />} />
             
             {/* Sidenav Item 3: Enrollment Module (Checklist ng Fees, Sectioning) */}
-            <Route path="enrollment" element={<div className="p-10 text-2xl font-bold">Enrollment Module (Gagawin pa)</div>} />
+            <Route path="enrollment" element={<EnrollmentModule />} />
             
             {/* Sidenav Item 4: Teacher & Class Assignments */}
-            <Route path="assignments" element={<div className="p-10 text-2xl font-bold">Class Assignments (Gagawin pa)</div>} />
+            <Route path="assignments" element={<TeacherAssignments />} />
           </Route>
 
           {/* 8. FALLBACK */}
