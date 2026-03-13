@@ -1,206 +1,216 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  Wallet, Search, Receipt, Banknote, History, CheckCircle2, X, CreditCard 
-} from 'lucide-react';
+import { Wallet, Banknote, History, CreditCard, Activity, X } from 'lucide-react';
 
-const PaymentDashboard = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    studentId: '',
-    amount: '',
-    method: 'Cash',
-    category: 'Tuition'
-  });
-
+const CashierDashboard = () => {
+  const [isAllTxModalOpen, setIsAllTxModalOpen] = useState(false);
+  const [allTransactions, setAllTransactions] = useState([]);
   const [stats, setStats] = useState({
-    recentTransactions: [] // Sinisiguro natin na may "empty list" siya sa simula
+    totalCollections: "₱0.00",
+    todayTransactions: 0,
+    pendingPayments: 0,
+    recentTransactions: [],
+    breakdown: { Cash: 0, GCash: 0, Card: 0 }
   });
 
-  // 1. Dito natin ilalagay ang fetch function
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get('http://localhost/sms-api/cashier/get_payments.php');
-      setStats(prev => ({
-        ...prev,
-        recentTransactions: response.data
-      }));
+      const [statsRes, paymentsRes] = await Promise.all([
+        axios.get('http://localhost/sms-api/cashier/get_dashboard_stats.php'),
+        axios.get('http://localhost/sms-api/cashier/get_payments.php')
+      ]);
+      setStats({
+        totalCollections: statsRes.data.totalCollections,
+        todayTransactions: statsRes.data.todayTransactions,
+        pendingPayments: statsRes.data.pendingPayments,
+        recentTransactions: paymentsRes.data || [],
+        breakdown: statsRes.data.breakdown
+      });
     } catch (error) {
-      console.error("Error fetching transactions:", error);
+      console.error("Dashboard Fetch Error:", error);
     }
   };
 
-  // 2. Ito ang useEffect
+  const fetchAllTransactions = async () => {
+    try {
+      const response = await axios.get('http://localhost/sms-api/cashier/get_all_payments.php');
+      setAllTransactions(response.data);
+      setIsAllTxModalOpen(true);
+    } catch (error) {
+      console.error("Error fetching all transactions:", error);
+    }
+  };
+
   useEffect(() => {
-    fetchTransactions(); // Tatakbo ito pagkabukas ng page
-  }, []); // Ang [] ay nangangahulugang "once" lang siya tatakbo
-
-  const handleSubmit = async (e) => { 
-    e.preventDefault();
-    try {
-      const response = await axios.post('http://localhost/sms-api/cashier/process_payment.php', formData);
-
-      if (response.status === 201 || response.data.message.includes("successfully")) {
-        alert("Payment Saved Successfully!");
-        setIsModalOpen(false);
-        setFormData({
-          studentId: '',
-          amount: '',
-          method: 'Cash',
-          category: 'Tuition'
-        });
-        // para i-refresh ang table para makita agad yung bagong bayad.
-        fetchTransactions();
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Failed to save payment.");
-    }
-  };
+    fetchData();
+  }, []);
 
   return (
-    <div className="p-6">
-      {/* Header with Quick Action */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Payment Processing</h1>
-          <p className="text-slate-500 text-sm">Manage student transactions and financial records.</p>
-        </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
-        >
-          <Banknote size={20} /> New Payment
-        </button>
+    <div className="p-6 space-y-8 bg-slate-50 min-h-screen text-left">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+          <Activity className="text-blue-600" size={24} /> Cashier Overview
+        </h1>
+        <p className="text-slate-500 text-sm font-medium italic">Monitor today's financial data with precision.</p>
       </div>
 
-      {/* --- MODAL START --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="font-black text-slate-800 uppercase tracking-wide">Receive Payment</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={24} />
-              </button>
+      {/* Floating Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: "Total Collections", val: stats.totalCollections, color: "text-emerald-600", border: "border-emerald-100" },
+          { label: "Today's Transactions", val: stats.todayTransactions, color: "text-blue-600", border: "border-blue-100" },
+          { label: "Pending Issues", val: stats.pendingPayments, color: "text-orange-600", border: "border-orange-100" }
+        ].map((card, i) => (
+          <div key={i} className={`bg-white p-6 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.04)] border-2 ${card.border} hover:shadow-[0_25px_50px_rgba(0,0,0,0.08)] hover:-translate-y-2 transition-all duration-300 cursor-default`}>
+            <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">{card.label}</p>
+            <h3 className={`text-3xl font-black ${card.color}`}>{card.val}</h3>
+          </div>
+        ))}
+
+        {/* Dark Breakdown Card */}
+        <div className="bg-slate-900 p-6 rounded-[2rem] shadow-[0_20px_50px_rgba(15,23,42,0.3)] hover:-translate-y-2 transition-all duration-300 text-white border-2 border-slate-700">
+          <p className="text-slate-500 text-[10px] font-black uppercase mb-3 tracking-widest text-center">Method Breakdown</p>
+          <div className="flex justify-between items-center px-2 text-center">
+            <div className="flex-1">
+              <p className="text-[9px] text-emerald-400 font-black">CASH</p>
+              <p className="font-black text-sm">₱{Number(stats.breakdown?.Cash || 0).toLocaleString()}</p>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Student ID / Name</label>
-                <input 
-                  type="text" 
-                  required
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="e.g. 2023-0001"
-                  onChange={(e) => setFormData({...formData, studentId: e.target.value})}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Amount to Pay</label>
-                  <input 
-                    type="number" 
-                    required
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="0.00"
-                    onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fee Category</label>
-                  <select 
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg outline-none"
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  >
-                    <option>Tuition</option>
-                    <option>Miscellaneous</option>
-                    <option>Uniform</option>
-                    <option>Books</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Payment Method</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Cash', 'GCash', 'Card'].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setFormData({...formData, method: m})}
-                      className={`p-2 text-sm font-bold rounded-lg border transition-all ${
-                        formData.method === m 
-                        ? 'bg-blue-600 text-white border-blue-600' 
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                type="submit"
-                className="w-full bg-slate-800 text-white font-black py-4 rounded-xl mt-4 hover:bg-slate-900 transition-all uppercase tracking-widest shadow-xl shadow-slate-200"
-              >
-                Confirm Transaction
-              </button>
-            </form>
+            <div className="w-[1px] h-6 bg-slate-700 mx-2"></div>
+            <div className="flex-1">
+              <p className="text-[9px] text-blue-400 font-black">GCASH</p>
+              <p className="font-black text-sm">₱{Number(stats.breakdown?.GCash || 0).toLocaleString()}</p>
+            </div>
+            <div className="w-[1px] h-6 bg-slate-700 mx-2"></div>
+            <div className="flex-1">
+              <p className="text-[9px] text-orange-400 font-black">CARD</p>
+              <p className="font-black text-sm">₱{Number(stats.breakdown?.Card || 0).toLocaleString()}</p>
+            </div>
           </div>
         </div>
-      )}
-      {/* --- MODAL END --- */}
+      </div>
 
-      {/* Dito mo ilalagay yung existing table mo ng recent transactions */}
-      <div className="mt-8">
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">Live Transaction Log</p>
+      {/* Floating Table with Hover Rows */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-end">
+          <div>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+              <History size={14} /> Live Transaction Log
+            </p>
+            <p className="text-[10px] text-slate-400 italic font-medium">Hover over rows to highlight details</p>
+          </div>
+          <button
+            onClick={fetchAllTransactions}
+            className="text-[10px] font-black uppercase tracking-widest text-blue-700 hover:text-white hover:bg-blue-600 bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl transition-all duration-300 shadow-sm active:scale-95"
+          >
+            View All Records
+          </button>
+        </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Student ID</th>
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Amount</th>
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Category</th>
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Date</th>
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] border-2 border-slate-100 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50/80 border-b-2 border-slate-100">
+              <tr>
+                <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student ID</th>
+                <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Name</th>
+                <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Amount</th>
+                <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Fee Type</th>
+                <th className="p-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Method</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100 font-medium">
               {stats.recentTransactions.length > 0 ? (
-                stats.recentTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4 font-bold text-slate-700">{tx.student}</td>
-                    <td className="p-4 font-black text-blue-600">
+                stats.recentTransactions.slice(0, 5).map((tx) => (
+                  <tr
+                    key={tx.id}
+                    className="group transition-all duration-200 hover:bg-slate-100/80 cursor-default"
+                  >
+                    {/* Student ID */}
+                    <td className="p-5 text-xs font-mono font-bold text-slate-400 group-hover:text-slate-600 transition-colors">
+                      {tx.student}
+                    </td>
+
+                    {/* Name */}
+                    <td className="p-5 text-sm font-bold text-slate-700">
+                      Student Name
+                    </td>
+
+                    {/* Amount */}
+                    <td className="p-5 text-sm font-black text-blue-600">
                       ₱{Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="p-4 text-slate-600 text-sm">{tx.type}</td>
-                    <td className="p-4 text-slate-400 text-xs">{tx.date}</td>
-                    <td className="p-4">
-                      <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                        {tx.status}
+
+                    {/* Fee Type */}
+                    <td className="p-5 text-[11px] font-bold text-slate-500 uppercase tracking-tight">
+                      {tx.type}
+                    </td>
+
+                    {/* Method */}
+                    <td className="p-5 text-right">
+                      <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase border ${tx.method === 'Cash' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          tx.method === 'GCash' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                            'bg-orange-50 text-orange-600 border-orange-100'
+                        }`}>
+                        {tx.method}
                       </span>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="5" className="p-10 text-center text-slate-400 italic">
-                    No transactions found. Start by adding a new payment!
-                  </td>
-                </tr>
+                <tr><td colSpan="5" className="p-20 text-center text-slate-300 italic font-medium">No records today.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {isAllTxModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-center justify-center p-6 text-left">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden border-4 border-white">
+            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Full Transaction History</h2>
+                <p className="text-sm text-slate-400 font-medium italic">Complete log of student payments.</p>
+              </div>
+              <button onClick={() => setIsAllTxModalOpen(false)} className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all shadow-sm">
+                <X size={24} />
+              </button>
+            </div>
 
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 border-b-2 border-slate-50">
+                  <tr>
+                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</th>
+                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Name</th>
+                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fee Type</th>
+                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Method & Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {allTransactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 text-xs font-mono text-slate-400">{tx.student}</td>
+                      <td className="p-4 font-bold text-slate-700 text-sm">Student Name</td>
+                      <td className="p-4 font-black text-blue-600 text-sm">₱{Number(tx.amount).toLocaleString()}</td>
+                      <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{tx.type}</td>
+                      <td className="p-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase mb-1">{tx.method}</span>
+                          <span className="text-[10px] font-bold text-slate-300 uppercase italic">{tx.date}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default PaymentDashboard;
+export default CashierDashboard;
