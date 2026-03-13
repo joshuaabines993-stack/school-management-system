@@ -21,6 +21,7 @@ import TeacherAssignments from './pages/registrar/TeacherAssignments'; // Dito a
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentAccounting from './pages/student/StudentAccounting';
+import StudentLms from './pages/student/StudentLms';
 
 // Cashier Pages
 import PaymentDashboard from './pages/cashier/PaymentDashboard';
@@ -121,6 +122,7 @@ function App() {
           }>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<StudentDashboard />} />
+            <Route path="lms" element={<StudentLms />} />
             <Route path="accounting" element={<StudentAccounting />} />
           </Route>
 
