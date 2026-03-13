@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   User, BookOpen, CreditCard, Lock, Unlock,
   LogOut, CheckCircle2, Megaphone, Wallet,
-  Info, Download, Menu, X, Camera, Save, Edit3, ArrowRight
+  Info, Download, Menu, X, Camera, Save, Edit3, ArrowRight, Loader2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -34,10 +34,12 @@ const StudentDashboard = () => {
     if (user?.email) fetchData();
   }, [user.email]);
 
-  const isLocked = !studentData || studentData.enrollment_status === 'Pending';
+  // Status check para lang sa display (hindi na ito pang-block)
+  const isUnpaid = studentData?.payment_status === 'Unpaid';
 
   if (loading) return (
-    <div className="h-96 flex items-center justify-center font-black animate-pulse text-slate-400 uppercase tracking-widest">
+    <div className="h-screen flex flex-col items-center justify-center font-black animate-pulse text-slate-400 uppercase tracking-widest gap-4">
+      <Loader2 className="animate-spin text-blue-600" size={40} />
       Loading Student Data...
     </div>
   );
@@ -45,7 +47,7 @@ const StudentDashboard = () => {
   return (
     <div className="max-w-6xl mx-auto p-6 md:p-12 w-full space-y-8 animate-in fade-in duration-500">
       
-      {/* 1. WELCOME HEADER - Inalis ang Edit Profile Button */}
+      {/* 1. WELCOME HEADER */}
       <header className="flex justify-between items-end">
         <div>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -55,6 +57,10 @@ const StudentDashboard = () => {
             <span className="bg-yellow-500 text-[#001f3f] px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md">
               {studentData?.enrollment_type || 'Continuing'}
             </span>
+            {/* Displaying Payment Status Badge */}
+            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md ${isUnpaid ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {studentData?.payment_status || 'Pending'}
+            </span>
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-2">
             Mabuhay, <span style={{ color: branding.theme_color }}>{studentData?.first_name}!</span>
@@ -63,10 +69,22 @@ const StudentDashboard = () => {
         </div>
       </header>
 
+      {/* 2. PAYMENT NOTIFICATION (Visible regardless of status, alert style) */}
+      {isUnpaid && (
+        <div className="bg-red-50 border-2 border-red-100 p-5 rounded-3xl flex items-center gap-4">
+          <div className="bg-red-500 text-white p-2 rounded-xl shadow-lg shadow-red-200">
+            <Lock size={20} />
+          </div>
+          <p className="text-[11px] font-black text-red-900 uppercase tracking-tight">
+            Account Notice: Your account status is currently UNPAID. Please settle your balance.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           
-          {/* 2. FINANCIAL OVERVIEW */}
+          {/* 3. FINANCIAL OVERVIEW - Displaying Balance from Database */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <div style={{ backgroundColor: branding.theme_color }} className="p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
                 <Wallet size={40} className="mb-6 text-yellow-500" />
@@ -85,21 +103,23 @@ const StudentDashboard = () => {
                   <div className="p-4 bg-emerald-50 rounded-2xl">
                     <CheckCircle2 size={24} className="text-emerald-600" />
                   </div>
-                  <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase">Good Standing</span>
+                  <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase ${isUnpaid ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {studentData?.payment_status}
+                  </span>
                 </div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Latest Payment</p>
-                <h2 className="text-2xl font-black text-slate-900 mt-1">₱ {studentData?.last_payment || '0.00'}</h2>
-                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase italic">Processed: {studentData?.payment_date || 'N/A'}</p>
+                <h2 className="text-2xl font-black text-slate-900 mt-1">₱ {studentData?.paid_amount || '0.00'}</h2>
+                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase italic">Processed: {studentData?.last_payment_date || 'N/A'}</p>
              </div>
           </div>
 
-          {/* 3. ANNOUNCEMENTS */}
+          {/* 4. ANNOUNCEMENTS */}
           <div style={{ backgroundColor: branding.theme_color }} className="text-white p-5 rounded-3xl flex items-center gap-5 shadow-xl overflow-hidden relative">
             <Megaphone size={24} className="shrink-0 animate-bounce text-yellow-500" />
             <marquee className="font-black text-xs uppercase tracking-widest italic">Important: School Year {studentData?.school_year} enrollment is ongoing.</marquee>
           </div>
 
-          {/* 4. ENROLLMENT DETAILS */}
+          {/* 5. ENROLLMENT DETAILS */}
           <section className="bg-white border border-slate-200 rounded-[2.5rem] p-6 md:p-10 shadow-sm">
             <h3 className="font-black text-slate-800 mb-8 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
               <CheckCircle2 size={16} className="text-blue-500"/> Enrollment Details
@@ -108,22 +128,22 @@ const StudentDashboard = () => {
                <InfoItem label="Grade Level" value={studentData?.grade_level} />
                <InfoItem label="Classification" value={studentData?.enrollment_type} />
                <InfoItem label="School Year" value={studentData?.school_year} />
-               <InfoItem label="Portal Access" value={studentData?.enrollment_status} />
+               <InfoItem label="Payment Status" value={studentData?.payment_status} />
                <InfoItem label="Payment Plan" value={studentData?.payment_plan} />
                <InfoItem label="LRN Number" value={studentData?.lrn} />
             </div>
           </section>
         </div>
 
-        {/* 5. SIDE CARDS */}
+        {/* 6. SIDE CARDS */}
         <div className="space-y-8">
-           <div className={`p-8 rounded-[2.5rem] border-4 ${isLocked ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+           <div className={`p-8 rounded-[2.5rem] border-4 ${isUnpaid ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
              <div className="flex items-center gap-4">
-                <div style={{ backgroundColor: isLocked ? '#ef4444' : branding.theme_color }} className="text-white p-4 rounded-2xl shadow-lg">
-                   {isLocked ? <Lock size={24}/> : <Unlock size={24}/>}
+                <div style={{ backgroundColor: isUnpaid ? '#ef4444' : branding.theme_color }} className="text-white p-4 rounded-2xl shadow-lg">
+                   {isUnpaid ? <Lock size={24}/> : <Unlock size={24}/>}
                 </div>
                 <div>
-                   <p className={`font-black text-xl leading-none ${isLocked ? 'text-red-700' : 'text-emerald-700'}`}>{isLocked ? 'LOCKED' : 'ACTIVE'}</p>
+                   <p className={`font-black text-xl leading-none ${isUnpaid ? 'text-red-700' : 'text-emerald-700'}`}>{isUnpaid ? 'PENDING' : 'ACTIVE'}</p>
                    <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">LMS Access Status</p>
                 </div>
              </div>
@@ -143,7 +163,6 @@ const StudentDashboard = () => {
   );
 };
 
-// MINI COMPONENTS PARA MALINIS ANG CODE
 const InfoItem = ({ label, value }) => (
   <div>
     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>

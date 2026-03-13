@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   CreditCard, CheckCircle2, Megaphone, Wallet, 
-  Receipt, Calendar, Download, Lock
+  Receipt, Calendar, Download, Lock, Loader2, ArrowLeft, Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const StudentAccounting = () => {
   const { user, branding } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [studentData, setStudentData] = useState(null);
 
@@ -31,8 +33,49 @@ const StudentAccounting = () => {
     if (user?.email) fetchData();
   }, [user.email]);
 
+  // --- LOGIC PARA SA DOWNLOAD ---
+  const handleDownload = (type) => {
+    if (!studentData) return;
+
+    const content = `
+========================================
+       OFFICIAL BILLING RECORD
+========================================
+Document Type: ${type}
+School Year: ${studentData.school_year}
+Date Generated: ${new Date().toLocaleDateString()}
+
+STUDENT INFORMATION:
+ID: ${studentData.student_id}
+Name: ${studentData.first_name} ${studentData.last_name}
+Grade Level: ${studentData.grade_level}
+
+FINANCIAL SUMMARY:
+Total Assessment: PHP ${studentData.total_amount}
+Total Paid:       PHP ${studentData.paid_amount}
+Balance Due:      PHP ${studentData.balance}
+Status:           ${studentData.payment_status}
+Payment Plan:     ${studentData.payment_plan}
+
+Last Payment Date: ${studentData.last_payment_date || 'N/A'}
+========================================
+       VALID PORTAL GENERATED
+========================================
+    `;
+
+    const element = document.createElement("a");
+    const file = new Blob([content], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${type}_${studentData.student_id}.txt`;
+    document.body.appendChild(element);
+    element.click();
+  };
+
+  const isUnpaid = studentData?.payment_status === 'Unpaid';
+
   if (loading) return (
-    <div className="h-96 flex items-center justify-center font-black animate-pulse text-slate-400 uppercase tracking-widest">
+    <div className="h-screen flex flex-col items-center justify-center font-black animate-pulse text-slate-400 uppercase tracking-widest gap-4">
+      <Loader2 className="animate-spin text-blue-600" size={40} />
       Loading Finance Records...
     </div>
   );
@@ -40,12 +83,15 @@ const StudentAccounting = () => {
   return (
     <div className="max-w-6xl mx-auto p-6 md:p-12 w-full space-y-8 animate-in fade-in duration-500">
       
-      {/* HEADER SECTION - Inalis ang Update Info Button */}
+      {/* HEADER SECTION */}
       <header className="flex justify-between items-end">
         <div>
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md">Finance Portal</span>
             <span className="bg-yellow-500 text-[#001f3f] px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md italic">S.Y. {studentData?.school_year}</span>
+            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md ${isUnpaid ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+              {studentData?.payment_status}
+            </span>
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-2">
             Accounting <span style={{ color: branding.theme_color }}>Records</span>
@@ -54,10 +100,22 @@ const StudentAccounting = () => {
         </div>
       </header>
 
+      {/* PAYMENT ALERT */}
+      {isUnpaid && (
+        <div className="bg-red-50 border-2 border-red-100 p-6 rounded-[2rem] flex items-center gap-5">
+          <div className="bg-red-500 text-white p-3 rounded-2xl shadow-lg">
+            <Info size={24} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-red-900 uppercase tracking-widest leading-none">Account Pending</p>
+            <p className="text-[10px] font-bold text-red-600/70 mt-1 uppercase">Please settle your remaining balance to activate all LMS features.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           
-          {/* BALANCE CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div style={{ backgroundColor: branding.theme_color }} className="p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
               <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
@@ -71,15 +129,17 @@ const StudentAccounting = () => {
 
             <div className="bg-white border-2 border-slate-100 p-8 rounded-[2.5rem] shadow-sm relative overflow-hidden">
               <div className="flex justify-between items-start mb-6">
-                <div className="p-4 bg-emerald-50 rounded-2xl">
-                  <CheckCircle2 size={24} className="text-emerald-600" />
+                <div className={`p-4 rounded-2xl ${isUnpaid ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                  {isUnpaid ? <Lock size={24} className="text-red-500" /> : <CheckCircle2 size={24} className="text-emerald-600" />}
                 </div>
-                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase">Good Standing</span>
+                <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase ${isUnpaid ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                   {studentData?.payment_status}
+                </span>
               </div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Latest Payment</p>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">₱ {studentData?.last_payment || '0.00'}</h2>
+              <h2 className="text-2xl font-black text-slate-900 mt-1">₱ {studentData?.paid_amount || '0.00'}</h2>
               <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase italic flex items-center gap-2">
-                <Calendar size={12}/> {studentData?.payment_date || 'N/A'}
+                <Calendar size={12}/> {studentData?.last_payment_date || 'N/A'}
               </p>
             </div>
           </div>
@@ -89,7 +149,6 @@ const StudentAccounting = () => {
             <marquee className="font-black text-xs uppercase tracking-widest italic">Important: Please settle any outstanding balance to avoid late enrollment penalties.</marquee>
           </div>
 
-          {/* ASSESSMENT TABLE */}
           <section className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-10 shadow-sm">
             <h3 className="font-black text-slate-800 mb-8 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
               <Receipt size={16} className="text-blue-500"/> Assessment Details
@@ -105,7 +164,15 @@ const StudentAccounting = () => {
                 <tbody className="text-sm font-bold text-slate-700">
                   <tr className="border-b border-slate-50">
                     <td className="py-6">Tuition & Miscellaneous Fees (SY {studentData?.school_year})</td>
-                    <td className="py-6 text-right font-black text-slate-900 text-lg">₱ {studentData?.balance}</td>
+                    <td className="py-6 text-right font-black text-slate-900 text-lg">₱ {studentData?.total_amount}</td>
+                  </tr>
+                  <tr className="border-b border-slate-50 text-emerald-600">
+                    <td className="py-6 italic font-medium">Total Paid Amount</td>
+                    <td className="py-6 text-right font-black text-lg">- ₱ {studentData?.paid_amount}</td>
+                  </tr>
+                  <tr className={isUnpaid ? 'text-red-600' : 'text-slate-900'}>
+                    <td className="py-6 uppercase tracking-widest text-[10px] font-black">Current Balance Due</td>
+                    <td className="py-6 text-right font-black text-2xl underline decoration-double">₱ {studentData?.balance}</td>
                   </tr>
                 </tbody>
               </table>
@@ -115,13 +182,13 @@ const StudentAccounting = () => {
 
         {/* SIDEBAR CARDS */}
         <div className="space-y-8">
-          <div className="p-8 rounded-[2.5rem] border-4 bg-emerald-50 border-emerald-100">
+          <div className={`p-8 rounded-[2.5rem] border-4 ${isUnpaid ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
             <div className="flex items-center gap-4">
-              <div style={{ backgroundColor: branding.theme_color }} className="text-white p-4 rounded-2xl shadow-lg">
+              <div style={{ backgroundColor: isUnpaid ? '#ef4444' : branding.theme_color }} className="text-white p-4 rounded-2xl shadow-lg">
                 <CreditCard size={24}/>
               </div>
               <div>
-                <p className="font-black text-xl leading-none text-emerald-700">FINANCE</p>
+                <p className={`font-black text-xl leading-none ${isUnpaid ? 'text-red-700' : 'text-emerald-700'}`}>{studentData?.payment_status?.toUpperCase()}</p>
                 <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">Record Status: Active</p>
               </div>
             </div>
@@ -130,9 +197,9 @@ const StudentAccounting = () => {
           <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl">
             <h3 className="font-black text-[9px] uppercase tracking-widest mb-6 text-slate-500 italic underline decoration-yellow-500">Quick Downloads</h3>
             <div className="space-y-3">
-              <DownloadBtn label="Billing Statement" />
-              <DownloadBtn label="Official Receipt" />
-              <DownloadBtn label="Payment Voucher" />
+              <DownloadBtn label="Billing Statement" onClick={() => handleDownload("Billing_Statement")} />
+              <DownloadBtn label="Official Receipt" onClick={() => handleDownload("Official_Receipt")} />
+              <DownloadBtn label="Payment Voucher" onClick={() => handleDownload("Payment_Voucher")} />
             </div>
           </div>
         </div>
@@ -141,9 +208,12 @@ const StudentAccounting = () => {
   );
 };
 
-// MINI COMPONENTS
-const DownloadBtn = ({ label }) => (
-  <button className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-[10px] font-bold uppercase tracking-widest group">
+// MINI COMPONENTS - In-update para tumanggap ng onClick
+const DownloadBtn = ({ label, onClick }) => (
+  <button 
+    onClick={onClick}
+    className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-[10px] font-bold uppercase tracking-widest group"
+  >
     {label} <Download size={14} className="text-yellow-500 group-hover:scale-125 transition-transform" />
   </button>
 );
