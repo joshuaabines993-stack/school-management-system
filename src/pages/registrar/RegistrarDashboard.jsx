@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios'; // Siguraduhing naka-import ang axios
 import { 
   Users, UserCheck, Clock, TrendingUp, Calendar, 
   FileText, Activity, ChevronRight, GraduationCap
@@ -10,38 +11,72 @@ const RegistrarDashboard = () => {
   const { user, branding } = useAuth();
   const [loading, setLoading] = useState(true);
   
-  // Dashboard Data States (Mock data muna for UI testing)
+  // Dashboard Data States
   const [stats, setStats] = useState({
     totalStudents: 0,
     enrolledCurrentSY: 0,
     pendingEnrollment: 0,
-    newStudents: 0
+    awaitingPayment: 0 // Dagdag natin ito para sa Registrar view
   });
 
   const [recentActivities, setRecentActivities] = useState([]);
 
   useEffect(() => {
-    // I-simulate natin yung API call fetching
-    setTimeout(() => {
-      setStats({
-        totalStudents: 1250,
-        enrolledCurrentSY: 850,
-        pendingEnrollment: 124,
-        newStudents: 310
-      });
-
-      setRecentActivities([
-        { id: 1, name: 'Juan Dela Cruz', action: 'Officially Enrolled', grade: 'Grade 10', time: '10 mins ago', status: 'success' },
-        { id: 2, name: 'Maria Clara', action: 'Profile Created', grade: 'Grade 11', time: '1 hour ago', status: 'pending' },
-        { id: 3, name: 'Pedro Penduko', action: 'Officially Enrolled', grade: 'Grade 7', time: '2 hours ago', status: 'success' },
-        { id: 4, name: 'Crisostomo Ibarra', action: 'Requested COR Print', grade: 'College', time: '3 hours ago', status: 'info' },
-        { id: 5, name: 'Sisa', action: 'Profile Created', grade: 'Grade 8', time: '5 hours ago', status: 'pending' },
-      ]);
-      setLoading(false);
-    }, 800);
+    fetchDashboardData();
   }, []);
 
-  // UI Helper for Stat Cards
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      // Palitan ang URL base sa location ng PHP mo
+      const response = await axios.get('http://localhost/sms-api/get_registrar_dashboard.php');
+      
+      if (response.data.success) {
+        const data = response.data;
+        
+        setStats({
+          totalStudents: data.stats.total_students,
+          enrolledCurrentSY: data.stats.total_enrolled,
+          pendingEnrollment: data.stats.pending_registrar,
+          awaitingPayment: data.stats.awaiting_payment
+        });
+
+        // INAYOS NA MAPPING: I-map natin ang data mula DB papunta sa format ng table mo
+        const activities = data.recent_activities.map((act, index) => {
+          let displayAction = "";
+          let statusColor = "";
+
+          // Logic para sa tamang Label at Kulay
+          if (act.status === 'Enrolled') {
+            displayAction = "OFFICIALLY ENROLLED";
+            statusColor = "success";
+          } else if (act.status === 'Assessed' || act.status === 'Awaiting Cashier') {
+            displayAction = "WAITING FOR PAYMENT";
+            statusColor = "info";
+          } else {
+            displayAction = "FOR ASSESSMENT";
+            statusColor = "pending";
+          }
+
+          return {
+            id: index,
+            name: `${act.first_name} ${act.last_name}`,
+            action: displayAction,
+            time: new Date(act.date_added).toLocaleDateString(),
+            status: statusColor
+          };
+        });
+
+        setRecentActivities(activities);
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // UI Helper for Stat Cards (Same as your original)
   const StatCard = ({ title, value, subtitle, icon: Icon, colorClass, bgColorClass }) => (
     <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 transition-all hover:shadow-md hover:-translate-y-1">
       <div className={`p-4 rounded-2xl ${bgColorClass} ${colorClass}`}>
@@ -67,7 +102,7 @@ const RegistrarDashboard = () => {
             Welcome back, {user?.full_name?.split(' ')[0] || 'Registrar'}!
           </h1>
           <p className="text-slate-500 font-medium mt-1">
-            Here's what's happening in the admissions office today.
+            Real-time enrollment monitoring is active.
           </p>
         </div>
         
@@ -79,8 +114,6 @@ const RegistrarDashboard = () => {
              Go to Enrollment
            </Link>
         </div>
-
-        {/* Decorative background element */}
         <div className="absolute right-0 top-0 w-64 h-64 bg-gradient-to-br from-blue-50 to-white rounded-full blur-3xl -z-0 opacity-50 transform translate-x-1/2 -translate-y-1/2" />
       </div>
 
@@ -89,7 +122,7 @@ const RegistrarDashboard = () => {
         <StatCard 
           title="Total Students" 
           value={stats.totalStudents} 
-          subtitle="Registered in system"
+          subtitle="Masterlist count"
           icon={Users} 
           colorClass="text-blue-600" 
           bgColorClass="bg-blue-50"
@@ -97,7 +130,7 @@ const RegistrarDashboard = () => {
         <StatCard 
           title="Officially Enrolled" 
           value={stats.enrolledCurrentSY} 
-          subtitle="Passed cashier assessment"
+          subtitle="Paid and Validated"
           icon={UserCheck} 
           colorClass="text-emerald-600" 
           bgColorClass="bg-emerald-50"
@@ -105,15 +138,15 @@ const RegistrarDashboard = () => {
         <StatCard 
           title="Pending Assessment" 
           value={stats.pendingEnrollment} 
-          subtitle="Awaiting registrar/cashier"
+          subtitle="Registrar's Action Needed"
           icon={Clock} 
           colorClass="text-amber-600" 
           bgColorClass="bg-amber-50"
         />
         <StatCard 
-          title="New Admissions" 
-          value={stats.newStudents} 
-          subtitle="Transferees & New Students"
+          title="Awaiting Payment" 
+          value={stats.awaitingPayment} 
+          subtitle="Forwarded to Cashier"
           icon={TrendingUp} 
           colorClass="text-indigo-600" 
           bgColorClass="bg-indigo-50"
@@ -121,15 +154,11 @@ const RegistrarDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* RECENT ACTIVITY TABLE (Spans 2 columns) */}
         <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-slate-50 flex justify-between items-center">
             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-              <Activity className="text-blue-500" size={20}/> Recent Enrollments
+              <Activity className="text-blue-500" size={20}/> Recent Enrollment Activity
             </h3>
-            <Link to="/registrar/enrollment" className="text-xs font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1">
-              View All <ChevronRight size={14}/>
-            </Link>
           </div>
           
           <div className="flex-1 overflow-x-auto">
@@ -137,24 +166,25 @@ const RegistrarDashboard = () => {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-6">Student</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Action</th>
-                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Time</th>
+                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Update</th>
+                  <th className="p-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {loading ? (
                   <tr><td colSpan="3" className="p-10 text-center text-slate-400 font-bold">Loading activities...</td></tr>
+                ) : recentActivities.length === 0 ? (
+                  <tr><td colSpan="3" className="p-10 text-center text-slate-400 font-bold">No recent activities found.</td></tr>
                 ) : (
                   recentActivities.map((activity) => (
                     <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-4 pl-6">
                         <p className="font-bold text-slate-800 text-sm">{activity.name}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">{activity.grade}</p>
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase flex w-fit items-center gap-1.5 ${
                           activity.status === 'success' ? 'bg-emerald-50 text-emerald-600' : 
-                          activity.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
+                          activity.status === 'info' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
                         }`}>
                           {activity.action}
                         </span>
@@ -168,10 +198,10 @@ const RegistrarDashboard = () => {
           </div>
         </div>
 
-        {/* QUICK TASKS / ENROLLMENT PROGRESS (Spans 1 column) */}
+        {/* QUICK TASKS SECTION */}
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 flex flex-col">
           <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-            <FileText className="text-blue-500" size={20}/> Quick Tasks
+            <FileText className="text-blue-500" size={20}/> Registrar Tasks
           </h3>
           
           <div className="space-y-4 flex-1">
@@ -180,8 +210,8 @@ const RegistrarDashboard = () => {
                 <Users size={20} />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-700">Update Masterlist</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Edit student profiles</p>
+                <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-700">Student Masterlist</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Manage profiles</p>
               </div>
               <ChevronRight size={16} className="text-slate-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-transform" />
             </Link>
@@ -191,36 +221,12 @@ const RegistrarDashboard = () => {
                 <Clock size={20} />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-800 group-hover:text-amber-700">Pending Assessments</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">{stats.pendingEnrollment} students waiting</p>
+                <h4 className="text-sm font-bold text-slate-800 group-hover:text-amber-700">Assessments</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">{stats.pendingEnrollment} for assessment</p>
               </div>
               <ChevronRight size={16} className="text-slate-400 group-hover:text-amber-500 group-hover:translate-x-1 transition-transform" />
             </Link>
-
-            <Link to="/registrar/assignments" className="group flex items-center p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50 transition-all cursor-pointer">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
-                <GraduationCap size={20} />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-800 group-hover:text-emerald-700">Teacher Assignments</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Assign subjects & loads</p>
-              </div>
-              <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-1 transition-transform" />
-            </Link>
           </div>
-
-          {/* Mini Progress Bar */}
-          <div className="mt-6 pt-6 border-t border-slate-100">
-             <div className="flex justify-between items-end mb-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment Target</p>
-                <p className="text-sm font-black text-slate-800">85%</p>
-             </div>
-             <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: '85%' }}></div>
-             </div>
-             <p className="text-[10px] font-bold text-slate-400 mt-2 text-center">850 out of 1000 target students</p>
-          </div>
-
         </div>
       </div>
     </div>
