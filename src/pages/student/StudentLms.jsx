@@ -18,6 +18,22 @@ const StudentLms = () => {
 
   const API_BASE_URL = "http://localhost/sms-api"; 
 
+  // --- LOGIC PARA SA DEPARTMENT AT SECTION/STRAND ---
+  const getStudentDetails = (grade, section, program) => {
+    if (!grade) return { dept: "N/A", displaySection: section || "TBA" };
+    const g = grade.toString().toUpperCase();
+    const gNum = parseInt(g.replace(/\D/g, ''));
+
+    if (g.includes('KINDER') || (gNum >= 1 && gNum <= 6)) return { dept: "Elementary Department", displaySection: section || "TBA" };
+    if (gNum >= 7 && gNum <= 10) return { dept: "Junior High School", displaySection: section || "TBA" };
+    if (gNum === 11 || gNum === 12) {
+      const strand = program || ""; 
+      return { dept: "Senior High School", displaySection: strand ? `${strand} - ${section}` : section };
+    }
+    if (g.includes('YEAR') || gNum > 12 || g.includes('COLLEGE')) return { dept: "College Department", displaySection: section || "TBA" };
+    return { dept: "Basic Education", displaySection: section || "TBA" };
+  };
+
   const fetchData = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/get_students.php`);
@@ -25,15 +41,23 @@ const StudentLms = () => {
       const myData = studentList.find(s => s.email === user.email);
       
       if (myData) {
-        /**
-         * GATEKEEPER ADD-ON:
-         * Kung ang enrollment_status ay 'Pending' o 'Assessed', 
-         * i-fo-force natin ang payment_status sa 'Unpaid'.
-         */
+        // --- UPDATED GATEKEEPER LOGIC ---
+        // Mag-lo-lock kung:
+        // 1. Unpaid ang payment_status
+        // 2. O kung ang enrollment_status ay hindi 'Enrolled'
         const currentEnrollment = myData.enrollment_status;
-        if (currentEnrollment === 'Pending' || currentEnrollment === 'Assessed' || !myData.payment_status) {
-          myData.payment_status = 'Unpaid';
+        const currentPayment = myData.payment_status;
+
+        if (currentEnrollment !== 'Enrolled' || currentPayment === 'Unpaid' || !currentPayment) {
+          myData.isLmsLocked = true;
+        } else {
+          // Kung 'Paid' o 'Partial', papayagan ang access
+          myData.isLmsLocked = false;
         }
+
+        const { dept, displaySection } = getStudentDetails(myData.grade_level, myData.section, myData.program_name);
+        myData.dynamicDept = dept;
+        myData.formattedSection = displaySection;
         
         setStudentData(myData);
       }
@@ -48,26 +72,6 @@ const StudentLms = () => {
     if (user?.email) fetchData();
   }, [user.email]);
 
-  const getDepartment = (grade) => {
-    if (!grade) return "N/A";
-    const g = parseInt(grade.toString().replace(/\D/g, '')); 
-    if (g >= 7 && g <= 10) return "Junior High School";
-    if (g === 11 || g === 12) return "Senior High School";
-    if (g > 12) return "College Department";
-    if (grade.toLowerCase().includes('year') || g < 7) return "College Department";
-    return "Basic Education";
-  };
-
-  /**
-   * GATEKEEPER CONDITION:
-   * Ang LMS ay mag-lo-lock kung:
-   * 1. Ang payment_status ay 'Unpaid'
-   * 2. O ang enrollment_status ay hindi 'Enrolled'
-   */
-  const isLocked = !studentData || 
-                   studentData.payment_status === 'Unpaid' || 
-                   studentData.enrollment_status !== 'Enrolled';
-
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center font-black animate-pulse text-slate-400 uppercase tracking-widest gap-4">
       <Loader2 className="animate-spin text-blue-600" size={40} />
@@ -76,7 +80,7 @@ const StudentLms = () => {
   );
 
   // --- LOCK SCREEN VIEW ---
-  if (isLocked) {
+  if (studentData?.isLmsLocked) {
     return (
       <div className="h-screen w-full flex items-center justify-center p-6 bg-slate-50 font-sans">
         <div className="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl border-2 border-red-100 text-center animate-in zoom-in duration-300">
@@ -85,20 +89,22 @@ const StudentLms = () => {
           </div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4 uppercase">LMS Locked</h2>
           <p className="text-slate-500 font-medium leading-relaxed mb-8">
-            Paumanhin, <span className="font-black">{studentData?.first_name || 'Estudyante'}</span>. 
-            Hindi ma-access ang LMS dahil sa iyong account status.
+            Paumanhin, <span className="font-black">{studentData?.first_name}</span>. 
+            Naka-lock ang iyong access. Mahalagang **bayaran ang tuition fee** (kahit partial lamang) para ma-activate ang iyong modules.
             <br/><br/>
             <div className="bg-red-50 p-6 rounded-[1.5rem] text-[11px] space-y-2 border border-red-100 shadow-inner">
-                <p className="flex justify-between items-center text-slate-500 font-bold">
-                  PAYMENT STATUS: 
-                  <span className="font-black text-red-600 bg-white px-2 py-1 rounded shadow-sm italic uppercase">{studentData?.payment_status || 'Unpaid'}</span>
+                <p className="flex justify-between items-center text-slate-500 font-bold uppercase">
+                  Payment Status: 
+                  <span className={`font-black px-2 py-1 rounded shadow-sm italic ${studentData?.payment_status === 'Unpaid' ? 'text-red-600 bg-white' : 'text-yellow-600 bg-white'}`}>
+                    {studentData?.payment_status || 'Unpaid'}
+                  </span>
                 </p>
-                <p className="flex justify-between items-center text-slate-500 font-bold">
-                  ENROLLMENT: 
-                  <span className="font-black text-red-600 bg-white px-2 py-1 rounded shadow-sm italic uppercase">{studentData?.enrollment_status || 'Pending'}</span>
+                <p className="flex justify-between items-center text-slate-500 font-bold uppercase">
+                  Enrollment: 
+                  <span className="font-black text-red-600 bg-white px-2 py-1 rounded shadow-sm italic">{studentData?.enrollment_status || 'Pending'}</span>
                 </p>
             </div>
-            <p className="mt-4 text-[10px] italic">Mangyaring makipag-ugnayan sa Cashier o Registrar.</p>
+            <p className="mt-4 text-[10px] italic">Mangyaring magbayad sa Cashier para mabuksan ang portal.</p>
           </p>
           <button onClick={() => navigate('/student/dashboard')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
             <ArrowLeft size={14} /> Back to Dashboard
@@ -108,13 +114,10 @@ const StudentLms = () => {
     );
   }
 
-  // --- AUTHORIZED UI (Walang Pagbabago Dito) ---
+  // --- AUTHORIZED UI ---
   const renderClassroomView = (title, icon, color, placeholderText, typeIcon) => (
     <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in slide-in-from-right duration-500">
-      <button 
-        onClick={() => setViewMode('grid')}
-        className="flex items-center gap-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-6 hover:text-slate-900 transition-colors"
-      >
+      <button onClick={() => setViewMode('grid')} className="flex items-center gap-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-6 hover:text-slate-900 transition-colors">
         <ArrowLeft size={16} /> Back to Dashboard
       </button>
 
@@ -122,21 +125,16 @@ const StudentLms = () => {
         <div style={{ backgroundColor: color }} className="h-48 relative p-8 flex flex-col justify-end text-white">
           <div className="absolute top-0 right-0 p-8 opacity-20">{icon}</div>
           <div className="z-10">
-            <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 inline-block">
-              {getDepartment(studentData?.grade_level)}
-            </span>
+            <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 inline-block">{studentData?.dynamicDept}</span>
             <h2 className="text-3xl font-bold">{title}</h2>
-            <p className="text-white/80 font-medium">{studentData?.grade_level} - {studentData?.section} | SY {studentData?.school_year}</p>
+            <p className="text-white/80 font-medium">{studentData?.grade_level} - {studentData?.formattedSection} | SY {studentData?.school_year}</p>
           </div>
         </div>
-
         <div className="p-6">
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex items-start gap-4 p-5 border border-slate-200 rounded-xl hover:shadow-md cursor-pointer transition-all bg-white group">
-                <div style={{ backgroundColor: color }} className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:scale-110 transition-transform">
-                  {typeIcon}
-                </div>
+                <div style={{ backgroundColor: color }} className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 group-hover:scale-110 transition-transform">{typeIcon}</div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <div>
@@ -165,14 +163,14 @@ const StudentLms = () => {
         <div>
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="bg-yellow-500 text-[#001f3f] px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md italic">
-              {studentData?.grade_level} - {studentData?.section}
+              {studentData?.grade_level} - {studentData?.formattedSection}
             </span>
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-2">
             Classroom <span style={{ color: branding.theme_color }}>Modules</span>
           </h1>
           <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em]">
-            SY {studentData?.school_year} | {getDepartment(studentData?.grade_level)}
+            SY {studentData?.school_year} | {studentData?.dynamicDept}
           </p>
         </div>
       </header>
@@ -199,9 +197,9 @@ const StudentLms = () => {
               <GraduationCap size={16} className="text-emerald-500"/> Enrollment Info
             </h3>
             <div className="space-y-4">
-              <StatusItem label="Department" value={getDepartment(studentData?.grade_level)} />
+              <StatusItem label="Department" value={studentData?.dynamicDept} />
               <StatusItem label="Payment Status" value={studentData?.payment_status} />
-              <StatusItem label="Section" value={studentData?.section} />
+              <StatusItem label="Section" value={studentData?.formattedSection} />
             </div>
           </div>
 
@@ -217,7 +215,6 @@ const StudentLms = () => {
                 </div>
                 <span className="text-[10px] font-black bg-white/10 px-3 py-1 rounded-lg uppercase tracking-widest">Excellent</span>
               </div>
-              
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-black uppercase">
                    <span className="text-white/40">Attendance</span>
@@ -225,16 +222,6 @@ const StudentLms = () => {
                 </div>
                 <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: '98%' }}></div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-black uppercase">
-                   <span className="text-white/40">Submissions</span>
-                   <span>14/15</span>
-                </div>
-                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: '93%' }}></div>
                 </div>
               </div>
             </div>
