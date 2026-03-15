@@ -18,6 +18,7 @@ const StudentLms = () => {
 
   const API_BASE_URL = "http://localhost/sms-api"; 
 
+  // --- LOGIC PARA SA DEPARTMENT AT SECTION/STRAND ---
   const getStudentDetails = (grade, section, program) => {
     if (!grade) return { dept: "N/A", displaySection: section || "TBA" };
     const g = grade.toString().toUpperCase();
@@ -37,34 +38,32 @@ const StudentLms = () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/get_students.php`);
       const studentList = response.data.students || [];
-      const billingItems = response.data.billing_items || [];
       const myData = studentList.find(s => s.email === user.email);
       
       if (myData) {
-        // --- GATEKEEPER LOGIC (ENHANCED) ---
-        const currentEnrollment = (myData.enrollment_status || "").trim();
-        const currentPaymentStatus = (myData.payment_status || "").toLowerCase().trim();
+        // --- ARITHMETIC LOGIC (GAYA NG SA DASHBOARD) ---
+        const totalAmount = parseFloat(myData.total_amount || 0);
         const paidAmount = parseFloat(myData.paid_amount || 0);
+        const tuitionOnly = parseFloat(myData.tuition_only_amount || 0);
+        
+        // Gatekeeper Logic: 50% of Tuition Requirement
+        const tuitionThreshold = tuitionOnly * 0.5;
+        const isEnrolled = (myData.enrollment_status || "").trim() === 'Enrolled';
+        
+        // Status checks for dynamic UI
+        const isPaid = paidAmount >= totalAmount && totalAmount > 0;
+        const isPartial = paidAmount > 0 && paidAmount < totalAmount;
+        const isUnpaid = paidAmount <= 0;
 
-        // Hanapin ang Tuition Fee amount mula sa billing items
-        const tuitionItem = billingItems.find(item => 
-          item.billing_id === myData.billing_id && 
-          item.item_name.toLowerCase().includes('tuition')
-        );
-        const tuitionFee = tuitionItem ? parseFloat(tuitionItem.amount) : 0;
-        const tuitionThreshold = tuitionFee * 0.5; // 50% Requirement
+        // Custom Display Status
+        myData.computedPaymentStatus = isPaid ? 'Fully Paid' : isPartial ? 'Partial Payment' : 'Unpaid';
 
-        // Logic: Dapat Enrolled AT (Paid >= 50% ng Tuition)
-        const isEnrolled = currentEnrollment === 'Enrolled';
-        const hasMetTuitionRequirement = paidAmount >= tuitionThreshold;
-
-        if (isEnrolled && hasMetTuitionRequirement) {
+        // LMS LOCK LOGIC: Unlock kung Enrolled at naabot ang 50% ng TUITION
+        if (isEnrolled && paidAmount >= tuitionThreshold) {
           myData.isLmsLocked = false;
         } else {
           myData.isLmsLocked = true;
-          // Karagdagang info para sa Lock Screen
-          myData.neededAmount = tuitionThreshold - paidAmount;
-          myData.tuitionTotal = tuitionFee;
+          myData.neededForUnlock = Math.max(0, tuitionThreshold - paidAmount);
         }
 
         const { dept, displaySection } = getStudentDetails(myData.grade_level, myData.section, myData.program_name);
@@ -91,6 +90,7 @@ const StudentLms = () => {
     </div>
   );
 
+  // --- LOCK SCREEN VIEW ---
   if (studentData?.isLmsLocked) {
     return (
       <div className="h-screen w-full flex items-center justify-center p-6 bg-slate-50 font-sans">
@@ -99,28 +99,30 @@ const StudentLms = () => {
             <Lock size={48} />
           </div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4 uppercase leading-none">LMS Locked</h2>
-          <p className="text-slate-500 font-medium leading-relaxed mb-8 text-sm">
+          <div className="text-slate-500 font-medium leading-relaxed mb-8 text-sm">
             Paumanhin, <span className="font-black text-slate-800">{studentData?.first_name}</span>. 
-            Naka-lock ang iyong access. Kailangan mong mabayaran ang <strong className="font-bold text-slate-900">hindi bababa sa 50% ng iyong Tuition Fee</strong> para ma-activate ang portal.
+            Naka-lock ang iyong access. Mahalagang <strong className="font-bold text-slate-900">bayaran ang 50% ng Tuition Fee</strong> para ma-activate ang iyong modules.
             <br/><br/>
             <div className="bg-red-50 p-6 rounded-[1.5rem] text-[11px] space-y-2 border border-red-100 shadow-inner">
                 <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Tuition Fee: 
-                  <span className="font-black text-slate-900">₱{parseFloat(studentData?.tuitionTotal || 0).toLocaleString()}</span>
+                  Payment Status: 
+                  <span className={`font-black px-2 py-1 rounded shadow-sm italic ${studentData?.computedPaymentStatus === 'Unpaid' ? 'text-red-600 bg-white' : 'text-blue-600 bg-white'}`}>
+                    {studentData?.computedPaymentStatus}
+                  </span>
                 </p>
                 <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Amount Paid: 
-                  <span className="font-black text-blue-600">₱{parseFloat(studentData?.paid_amount || 0).toLocaleString()}</span>
+                  Enrollment: 
+                  <span className="font-black text-red-600 bg-white px-2 py-1 rounded shadow-sm italic">{studentData?.enrollment_status || 'Pending'}</span>
                 </p>
-                {studentData?.neededAmount > 0 && (
-                  <p className="flex justify-between items-center text-red-600 font-black uppercase tracking-wider pt-2 border-t border-red-200">
-                    Kulang para ma-unlock: 
-                    <span className="bg-white px-2 py-1 rounded shadow-sm">₱{studentData.neededAmount.toLocaleString()}</span>
-                  </p>
+                {studentData?.neededForUnlock > 0 && (
+                   <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider pt-2 border-t border-red-100">
+                   Kulang para ma-unlock: 
+                   <span className="font-black text-red-600">₱{studentData.neededForUnlock.toLocaleString()}</span>
+                 </p>
                 )}
             </div>
             <p className="mt-4 text-[10px] italic font-medium">Mangyaring magbayad sa Cashier para mabuksan ang portal.</p>
-          </p>
+          </div>
           <button onClick={() => navigate('/student/dashboard')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95">
             <ArrowLeft size={14} /> Back to Dashboard
           </button>
@@ -129,6 +131,7 @@ const StudentLms = () => {
     );
   }
 
+  // --- AUTHORIZED UI ---
   const renderClassroomView = (title, icon, color, placeholderText, typeIcon) => (
     <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in slide-in-from-right duration-500 font-sans">
       <button onClick={() => setViewMode('grid')} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[11px] tracking-widest mb-6 hover:text-slate-900 transition-colors">
@@ -179,8 +182,8 @@ const StudentLms = () => {
             <span className="bg-yellow-400 text-[#001f3f] px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md italic">
               {studentData?.grade_level} - {studentData?.formattedSection}
             </span>
-            <span className="bg-blue-600 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md italic">
-              Status: {studentData?.payment_status}
+            <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md italic ${studentData?.computedPaymentStatus === 'Unpaid' ? 'bg-red-500 text-white' : studentData?.computedPaymentStatus === 'Partial Payment' ? 'bg-yellow-500 text-[#001f3f]' : 'bg-emerald-500 text-white'}`}>
+              Status: {studentData?.computedPaymentStatus}
             </span>
           </div>
           <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter mb-3 leading-none">
@@ -217,7 +220,8 @@ const StudentLms = () => {
             </h3>
             <div className="space-y-5">
               <StatusItem label="Department" value={studentData?.dynamicDept} />
-              <StatusItem label="Payment Status" value={studentData?.payment_status} />
+              <StatusItem label="Scholarship" value={studentData?.scholarship_type || 'None'} />
+              <StatusItem label="Payment Status" value={studentData?.computedPaymentStatus} />
               <StatusItem label="Section" value={studentData?.formattedSection} />
             </div>
           </div>
