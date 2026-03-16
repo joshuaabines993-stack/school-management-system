@@ -93,6 +93,7 @@ const FeeCatalog = () => {
             <option value="Tuition">Tuition</option>
             <option value="Mandatory">Mandatory</option>
             <option value="Optional">Optional</option>
+            <option value="Document">Document</option>
             <option value="Other">Other</option>
           </select>
         </div>
@@ -172,6 +173,7 @@ const FeeCatalog = () => {
                       <option value="Tuition">Tuition</option>
                       <option value="Mandatory">Mandatory</option>
                       <option value="Optional">Optional</option>
+                      <option value="Document">Document</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
