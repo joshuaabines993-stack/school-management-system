@@ -31,6 +31,10 @@ import FeeCatalog from './pages/cashier/FeeCatalog';
 import Scholarships from './pages/cashier/Scholarships';
 import CollectionReports from './pages/cashier/CollectionReports';
 
+// Teacher Pages
+import TeacherDashboard from './pages/teacher/teacherdashboard';
+import TeacherNotify from './pages/teacher/TeacherNotify'; 
+import TeacherProfile from './pages/teacher/TeacherProfile';
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import StudentLayout from './layouts/StudentLayout';
@@ -40,6 +44,7 @@ import LandingPage from './pages/landingpage';
 import Login from './pages/auth/Login';
 import UserManagement from './pages/admin/UserManagement';
 import BrandingSettings from './pages/admin/BrandingSettings';
+
 
 // Placeholder Components
 const AdminDashboard = () => (
@@ -112,8 +117,9 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<div className="p-10 text-2xl font-bold">Teacher Dashboard (Joshua)</div>} />
-            <Route path="lessons" element={<div className="p-10 text-2xl font-bold">Lessons Module (Joshua)</div>} />
+            <Route path="dashboard" element={<TeacherDashboard />} />
+            <Route path="announcements" element={<TeacherNotify />} />
+            <Route path="profile" element={<TeacherProfile />} />
           </Route>
 
           {/* 6. LMS / STUDENTS ROUTES */}

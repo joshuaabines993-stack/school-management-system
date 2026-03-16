@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Settings, LogOut, Menu, X, 
   BookOpen, CreditCard, UserCircle, Search, Receipt, 
-  History, ClipboardList, GraduationCap, Layers, FileText // <-- DAGDAG NA ICONS
+  History, ClipboardList, GraduationCap, Layers, FileText , BellDot 
 } from 'lucide-react'; 
 import { useAuth } from '../context/AuthContext';
 
@@ -33,8 +33,9 @@ const AdminLayout = () => {
       { icon: <GraduationCap size={20} />, label: 'Class Assignments', path: '/registrar/assignments' },
     ],
     teacher: [
-      { icon: <LayoutDashboard size={20} />, label: 'LMS Dashboard', path: '/teacher/dashboard' },
-      { icon: <BookOpen size={20} />, label: 'My Lessons', path: '/teacher/lessons' },
+      { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/teacher/dashboard' },
+      { icon: <BellDot size={20} />, label: 'Announcements', path: '/teacher/announcements' },
+      { icon: <UserCircle size={20} />, label: 'Profile', path: '/teacher/profile' },
     ],
     cashier: [
       { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/cashier/dashboard' },
@@ -49,7 +50,8 @@ const AdminLayout = () => {
   const currentMenu = menuConfig[user?.role] || [];
 
   return (
-    <div className="flex min-h-screen bg-slate-50 relative font-sans">
+    /* FIX 1: h-screen at overflow-hidden para i-lock ang buong view */
+    <div className="flex h-screen overflow-hidden bg-slate-50 relative font-sans">
       
       {/* 1. MOBILE OVERLAY */}
       {isSidebarOpen && (
@@ -60,13 +62,14 @@ const AdminLayout = () => {
       )}
 
       {/* 2. SIDEBAR */}
+      {/* FIX 2: lg:static at h-full para manatili sa kaliwa at hindi gumalaw */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col transition-transform duration-300 transform
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-        lg:translate-x-0 lg:static lg:inset-0 shadow-2xl
+        lg:translate-x-0 lg:static lg:inset-y-0 shadow-2xl flex-none
       `}>
-        {/* SIDEBAR HEADER (LOGO & SCHOOL NAME) */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+        {/* SIDEBAR HEADER */}
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center flex-none">
           <div className="flex items-center space-x-3">
             {branding.school_logo ? (
               <img src={branding.school_logo} alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
@@ -87,8 +90,8 @@ const AdminLayout = () => {
           </button>
         </div>
         
-        {/* NAVIGATION LINKS */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* NAVIGATION LINKS - Naka overflow-y-auto kung sakaling madaming menu items */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-sidebar-scroll">
           <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Main Menu</p>
           {currentMenu.map((item, index) => {
             const isActive = location.pathname === item.path;
@@ -99,9 +102,7 @@ const AdminLayout = () => {
                 to={item.path} 
                 onClick={() => setIsSidebarOpen(false)}
                 className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 group
-                  ${isActive 
-                    ? 'text-white shadow-lg' 
-                    : 'hover:bg-slate-800 hover:text-white'}`}
+                  ${isActive ? 'text-white shadow-lg' : 'hover:bg-slate-800 hover:text-white'}`}
                 style={isActive ? { backgroundColor: branding.theme_color || '#2563eb' } : {}}
               >
                 <span className={`${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}>
@@ -114,7 +115,7 @@ const AdminLayout = () => {
         </nav>
 
         {/* USER INFO & LOGOUT */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/50">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/50 flex-none">
           <div className="flex items-center space-x-3 mb-4 px-2">
              <div 
                className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold border border-slate-600"
@@ -138,8 +139,11 @@ const AdminLayout = () => {
       </aside>
 
       {/* 3. MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+      {/* FIX 3: h-full at overflow-hidden dito para ang main content lang ang mag-scroll */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        
+        {/* TOP NAVBAR (FIXED/STICKY) */}
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 flex-none">
           <div className="flex items-center space-x-4">
             <button 
               className="p-2 rounded-xl bg-slate-50 text-slate-600 lg:hidden hover:bg-slate-100"
@@ -171,8 +175,9 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        {/* PAGE CONTENT */}
-        <div className="p-4 lg:p-8">
+        {/* PAGE CONTENT CONTAINER */}
+        {/* FIX 4: DITO ANG OVERFLOW-Y-AUTO. Ito lang ang mag-i-scroll. */}
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8 bg-slate-50 custom-main-scroll">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>
