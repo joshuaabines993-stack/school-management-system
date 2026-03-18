@@ -19,6 +19,7 @@ import EnrollmentModule from './pages/registrar/EnrollmentModule';   // Dito ang
 import TeacherAssignments from './pages/registrar/TeacherAssignments'; // Dito ang pag-assign ng Teacher sa Subjects
 import StudentRequests from './pages/registrar/StudentRequests'; // <--- Ito yung bagong page
 import AcademicPrograms from './pages/registrar/AcademicPrograms'; // <--- BAGONG DAGDAG
+import ScholarshipApplications from './pages/registrar/ScholarshipApplications';
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentAccounting from './pages/student/StudentAccounting';
@@ -164,6 +165,8 @@ function App() {
             
             {/* Sidenav Item 6: Teacher & Class Assignments */}
             <Route path="assignments" element={<TeacherAssignments />} />
+
+            <Route path="scholarships" element={<ScholarshipApplications />} />
           </Route>
 
           {/* 8. FALLBACK */}

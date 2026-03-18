@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Settings, LogOut, Menu, X, 
   BookOpen, CreditCard, UserCircle, Search, Receipt, 
   History, ClipboardList, GraduationCap, Layers, FileText,
-  Library
+  Library, Award
 } from 'lucide-react'; 
 import { useAuth } from '../context/AuthContext';
 import UserProfileModal from '../components/admin/UserProfileModal'; 
@@ -30,6 +30,7 @@ const AdminLayout = () => {
       { icon: <ClipboardList size={20} />, label: 'Enrollment Module', path: '/registrar/enrollment' },
       { icon: <FileText size={20} />, label: 'Student Requests', path: '/registrar/requests' }, 
       { icon: <GraduationCap size={20} />, label: 'Class Assignments', path: '/registrar/assignments' },
+      { icon: <Award size={20} />, label: 'Scholarship Applications', path: '/registrar/scholarships' },
     ],
     teacher: [
       { icon: <LayoutDashboard size={20} />, label: 'LMS Dashboard', path: '/teacher/dashboard' },
