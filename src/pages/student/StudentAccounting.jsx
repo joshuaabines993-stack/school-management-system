@@ -18,47 +18,43 @@ const StudentAccounting = () => {
   const API_BASE_URL = "http://localhost/sms-api"; 
 
   const fetchData = async () => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/get_students.php`);
-      const allStudents = res.data.students; 
-      const allItems = res.data.billing_items;
-      const myData = allStudents.find(s => s.email === user.email);
-      
-      if (myData) {
-        const total = parseFloat(myData.total_amount || 0);
-        const paid = parseFloat(myData.paid_amount || 0);
-        const calculatedBalance = Math.max(0, total - paid);
-        myData.balance = calculatedBalance.toFixed(2);
+  try {
+    const res = await axios.get(`${API_BASE_URL}/get_students.php`);
+    const allStudents = res.data.students; 
+    const allItems = res.data.billing_items;
+    const myData = allStudents.find(s => s.email === user.email);
+    
+    if (myData) {
+      // 1. Kunin lahat ng items para sa billing na ito
+      const rawItems = allItems.filter(item => 
+        parseInt(item.billing_id) === parseInt(myData.billing_id)
+      );
 
-        let currentPaidPool = paid;
-        const rawItems = allItems.filter(item => 
-          parseInt(item.billing_id) === parseInt(myData.billing_id)
-        );
+      // 2. Filter logic: Ipakita lang ang items na may utang pa (Amount > Paid Amount)
+      const remainingItems = rawItems.map(item => {
+        const amount = parseFloat(item.amount || 0);
+        const paid = parseFloat(item.paid_amount || 0); // Gamitin ang actual paid per item
+        const itemBalance = amount - paid;
 
-        const remainingItems = rawItems.map(item => {
-          let itemAmount = parseFloat(item.amount);
-          if (currentPaidPool > 0) {
-            if (currentPaidPool >= itemAmount) {
-              currentPaidPool -= itemAmount;
-              return null;
-            } else {
-              const newAmount = itemAmount - currentPaidPool;
-              currentPaidPool = 0;
-              return { ...item, amount: newAmount };
-            }
-          }
-          return item;
-        }).filter(item => item !== null);
+        // Kung bayad na ang item na ito (balance is 0), wag na isama sa listahan
+        if (itemBalance <= 0) return null;
 
-        setStudentData(myData);
-        setBillingItems(remainingItems);
-      }
-    } catch (err) {
-      console.error("Error fetching accounting data:", err);
-    } finally {
-      setLoading(false);
+        return { ...item, amount: itemBalance }; // Ipakita ang natitirang babayaran
+      }).filter(item => item !== null);
+
+      // 3. I-calculate ang overall balance base sa natitirang items
+      const totalBalance = remainingItems.reduce((acc, item) => acc + item.amount, 0);
+      myData.balance = totalBalance.toFixed(2);
+
+      setStudentData(myData);
+      setBillingItems(remainingItems);
     }
-  };
+  } catch (err) {
+    console.error("Error fetching accounting data:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     if (user?.email) fetchData();
