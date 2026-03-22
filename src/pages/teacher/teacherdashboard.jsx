@@ -1,200 +1,248 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Users, AlertCircle, Clock, WifiOff } from 'lucide-react';
-import { getActiveSchoolYear } from '../../utils/dateUtils'; // Panatilihin natin ito base sa structure mo
+import { BookOpen, Users, AlertCircle, Clock, Zap, WifiOff, ChevronRight } from 'lucide-react';
+import { getActiveSchoolYear } from '../../utils/dateUtils'; 
+import OfflineBanner from '../../utils/offlinebanner';
 
 const TeacherDashboard = () => {
   const { syStart, syEnd, semester } = getActiveSchoolYear();
   const [stats, setStats] = useState({ classes: 0, students: 0, pendingGrading: 0 });
   const [schedules, setSchedules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Pinalitan natin ang "error" ng standardized server offline state
   const [isServerOffline, setIsServerOffline] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const fetchDashboardData = async () => {
+    setIsRetrying(true);
+    const cachedStats = localStorage.getItem('sms_teacher_stats');
+    const cachedSchedules = localStorage.getItem('sms_teacher_schedules');
+
+    if (cachedStats && cachedSchedules && !isRetrying) {
+      setStats(JSON.parse(cachedStats));
+      setSchedules(JSON.parse(cachedSchedules));
+      setIsLoading(false); 
+    }
+
+    try {
+      const response = await fetch('http://localhost/sms_backend/api/get_teacher_dashboard.php?teacher_id=1');
+      if (!response.ok) throw new Error('Server error');
+      
+      const data = await response.json();
+      setStats(data.stats);
+      setSchedules(data.schedules);
+      
+      localStorage.setItem('sms_teacher_stats', JSON.stringify(data.stats));
+      localStorage.setItem('sms_teacher_schedules', JSON.stringify(data.schedules));
+      setIsServerOffline(false); 
+      
+    } catch (error) {
+      setIsServerOffline(true);
+      if (!cachedStats || !cachedSchedules) {
+        setStats({ classes: 4, students: 120, pendingGrading: 8 });
+        setSchedules([
+          { id: 1, subject: 'Math 101 - Advanced Algebra', time: '08:00 AM - 09:30 AM', room: 'Room A' },
+          { id: 2, subject: 'Science 202 - Biology', time: '10:00 AM - 11:30 AM', room: 'Lab 1' },
+          { id: 3, subject: 'Programming 1 (Java)', time: '01:00 PM - 03:00 PM', room: 'ComLab 2' },
+          { id: 4, subject: 'Networking 101', time: '03:30 PM - 05:00 PM', room: 'ComLab 1' },
+          { id: 5, subject: 'Database Systems', time: '05:00 PM - 06:30 PM', room: 'ComLab 3' },
+          { id: 6, subject: 'Web Dev 2', time: '07:00 PM - 08:30 PM', room: 'ComLab 1' }
+        ]);
+      }
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setIsRetrying(false), 800); 
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      // STEP 1: KUNIN ANG CACHED DATA SA LOCAL STORAGE
-      const cachedStats = localStorage.getItem('sms_teacher_stats');
-      const cachedSchedules = localStorage.getItem('sms_teacher_schedules');
-
-      if (cachedStats && cachedSchedules) {
-        setStats(JSON.parse(cachedStats));
-        setSchedules(JSON.parse(cachedSchedules));
-        setIsLoading(false); // Ipakita agad sa screen ang last saved data
-      }
-
-      // STEP 2: KUMUHA NG FRESH DATA SA PHP SERVER
-      try {
-        const response = await fetch('http://localhost/sms_backend/api/get_teacher_dashboard.php?teacher_id=1');
-        
-        if (!response.ok) {
-          throw new Error('Server error');
-        }
-        
-        const data = await response.json();
-        
-        // STEP 3A: UPDATE STATE AT CACHE KUNG SUCCESSFUL
-        setStats(data.stats);
-        setSchedules(data.schedules);
-        
-        localStorage.setItem('sms_teacher_stats', JSON.stringify(data.stats));
-        localStorage.setItem('sms_teacher_schedules', JSON.stringify(data.schedules));
-        
-        setIsServerOffline(false); // Itago ang offline banner kung may connection na ulit
-        
-      } catch (error) {
-        // STEP 3B: ERROR! OFFLINE ANG SERVER
-        console.error("Connection failed:", error);
-        setIsServerOffline(true);
-        
-        // FALLBACK: Kung walang nakasave sa cache, mag-load ng mock data
-        if (!cachedStats || !cachedSchedules) {
-          setStats({ classes: 4, students: 120, pendingGrading: 8 });
-          setSchedules([
-            { id: 1, subject: 'Math 101', time: '08:00 AM - 09:30 AM', room: 'Room A' },
-            { id: 2, subject: 'Science 202', time: '10:00 AM - 11:30 AM', room: 'Lab 1' }
-          ]);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchDashboardData();
   }, []);
 
+  const statCards = [
+    { icon: <BookOpen size={18}/>, label: 'My Classes', value: stats.classes, color: 'text-blue-600', bg: 'bg-blue-100/60' },
+    { icon: <Users size={18}/>, label: 'Total Students', value: stats.students, color: 'text-emerald-600', bg: 'bg-emerald-100/60' },
+    { icon: <Clock size={18}/>, label: 'Next Class', value: '10:30 AM', color: 'text-orange-600', bg: 'bg-orange-100/60' },
+    { icon: <AlertCircle size={18}/>, label: 'Pending Grades', value: stats.pendingGrading, color: 'text-red-600', bg: 'bg-red-100/60' },
+  ];
+
   if (isLoading && !stats.classes) {
     return (
-      <div className="flex items-center justify-center min-h-[80vh] bg-transparent">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-8 h-8 md:w-10 md:h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-base md:text-lg font-semibold text-indigo-600">Loading dashboard...</div>
+      <div className="flex items-center justify-center min-h-[60vh] bg-transparent">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-4 border-white/40 border-t-indigo-600 rounded-full animate-spin shadow-md"></div>
+          <div className="text-sm font-bold text-indigo-600">Loading dashboard...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full p-4 md:p-8 animate-fade-in bg-transparent">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Header Section */}
-        <div className="flex justify-between items-center mb-6 md:mb-8 gap-4">
+    // FIX 1: Elastic height sa mobile, Fixed sa LG (Desktop)
+    <div className="w-full flex flex-col bg-transparent lg:h-[calc(100vh-7rem)] lg:-mt-4 lg:overflow-hidden pb-6 lg:pb-0">
+      
+      <style>{`
+        @keyframes fadeInUpGPU {
+          from { opacity: 0; transform: translate3d(0, 15px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        .animate-stagger {
+          animation: fadeInUpGPU 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          opacity: 0;
+          will-change: opacity, transform;
+          backface-visibility: hidden;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.8); }
+      `}</style>
+
+      {/* FIX 2: w-full at elastic flex sa mobile */}
+      <div className="max-w-7xl mx-auto w-full flex flex-col gap-3 lg:gap-4 lg:h-full">
+
+        {/* HEADER */}
+        <div className="animate-stagger shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/40 backdrop-blur-md px-5 py-4 rounded-xl border border-white shadow-sm" style={{ animationDelay: '0ms' }}>
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">Overview</h2>
+            <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Overview</h2>
+            <p className="text-[11px] text-slate-600 font-medium mt-0.5">Welcome back! Here's your schedule and tasks for today.</p>
           </div>
-          
-          {/* Dynamic School Year Badge */}
-          <span className="text-xs md:text-sm font-bold text-black bg-gray-50 px-3 py-1.5 md:px-4 md:py-2 rounded-full shadow-sm border border-indigo-100 whitespace-nowrap">
-            SY {syStart}-{syEnd} | {semester}
+          <span className="text-[11px] font-bold text-slate-700 bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-sm border border-white/80 shrink-0">
+            SY {syStart}-{syEnd} <span className="text-slate-400 mx-1">|</span> {semester}
           </span>
         </div>
 
-        {/* OFFLINE WARNING BANNER (Standardized) */}
-        {isServerOffline && (
-          <div className="mb-6 md:mb-8 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
-            <div className="bg-amber-100 p-2 rounded-lg text-amber-600 shrink-0">
-              <WifiOff size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-amber-800 tracking-tight">Viewing Cached Dashboard</h4>
-              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                The server is currently unreachable. You are viewing the offline data. Live student counts and schedules might be outdated.
-              </p>
-            </div>
-          </div>
-        )}
-        
-        {/* Analytics Cards with Icons */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
-          <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500 hover:shadow-md transition duration-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Classes</p>
-              <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats.classes}</p>
-            </div>
-            <div className="p-3 md:p-4 bg-blue-50 rounded-xl text-blue-500">
-              <BookOpen className="w-6 h-6 md:w-7 md:h-7" />
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-emerald-500 hover:shadow-md transition duration-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Total Students</p>
-              <p className="text-2xl md:text-3xl font-bold text-gray-800">{stats.students}</p>
-            </div>
-            <div className="p-3 md:p-4 bg-emerald-50 rounded-xl text-emerald-500">
-              <Users className="w-6 h-6 md:w-7 md:h-7" />
-            </div>
-          </div>
-          
-          <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 hover:shadow-md transition duration-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Pending Grading</p>
-              <p className="text-2xl md:text-3xl font-bold text-red-600">{stats.pendingGrading}</p>
-            </div>
-            <div className="p-3 md:p-4 bg-red-50 rounded-xl text-red-500">
-              <AlertCircle className="w-6 h-6 md:w-7 md:h-7" />
-            </div>
-          </div>
+        {/* OFFLINE BANNER */}
+        <div className="shrink-0">
+          <OfflineBanner isServerOffline={isServerOffline} isRetrying={isRetrying} onRetry={fetchDashboardData} />
         </div>
 
-        {/* Class Schedule Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-5 md:p-6 border-b border-gray-100 bg-white flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Clock className="text-indigo-600 w-5 h-5" />
-              <h3 className="text-base md:text-lg font-bold text-gray-800">Today's Schedule</h3>
+        {/* STATS GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 shrink-0">
+          {statCards.map((stat, index) => (
+            <div key={index} className="animate-stagger bg-white/40 backdrop-blur-md p-4 rounded-xl shadow-sm border border-white hover:bg-white/60 hover:-translate-y-0.5 transition-all duration-300 transform-gpu flex items-center gap-3 group cursor-default" style={{ animationDelay: `${100 + (index * 40)}ms` }}>
+              <div className={`p-2.5 rounded-lg ${stat.bg} ${stat.color} shrink-0 shadow-inner border border-white/50 group-hover:scale-105 transition-transform duration-300 transform-gpu`}>
+                {stat.icon}
+              </div>
+              <div>
+                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-0.5">{stat.label}</p>
+                <p className={`text-xl font-black tracking-tight ${stat.label === 'Pending Grades' && stat.value > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                  {stat.value}
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-semibold bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
-              {schedules.length} Classes
-            </span>
-          </div>
+          ))}
+        </div>
+
+        {/* ========================================== */}
+        {/* SCROLLABLE CONTAINERS AREA */}
+        {/* ========================================== */}
+        {/* FIX 3: flex-col sa mobile (para bumaba) at lg:grid sa desktop */}
+        <div className="flex-1 flex flex-col lg:grid lg:grid-cols-3 gap-3 md:gap-4 lg:min-h-0">
           
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 text-[10px] md:text-xs font-bold uppercase tracking-wider">
-                  <th className="p-4 border-b border-gray-200">Subject</th>
-                  <th className="p-4 border-b border-gray-200">Time</th>
-                  <th className="p-4 border-b border-gray-200">Room/Link</th>
-                  <th className="p-4 border-b border-gray-200 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="text-gray-700 bg-white text-xs md:text-sm">
+          {/* LEFT SIDE: SCHEDULE SECTION */}
+          <div 
+            className="animate-stagger lg:col-span-2 bg-white/40 backdrop-blur-md rounded-xl shadow-sm border border-white flex flex-col min-h-[400px] lg:min-h-0 lg:h-full overflow-hidden"
+            style={{ animationDelay: '250ms' }}
+          >
+            {/* CONTAINER TITLE */}
+            <div className="px-5 py-3.5 border-b border-white/60 bg-white/20 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-800">Today's Schedule</h3>
+              </div>
+              <span className="text-[9px] font-bold bg-white/60 text-slate-700 px-2.5 py-1 rounded-md shadow-sm border border-white uppercase tracking-wider">
+                {schedules.length} Classes
+              </span>
+            </div>
+
+            {/* TABLE HEADERS - Naka-hide sa Mobile, lalabas lang sa Tablet/Desktop */}
+            <div className="px-5 py-2.5 bg-white/40 border-b border-white/60 shrink-0 hidden md:block">
+              <div className="grid grid-cols-12 gap-2 text-slate-500 text-[9px] font-black uppercase tracking-widest items-center">
+                <div className="col-span-4">Subject</div>
+                <div className="col-span-4">Time</div>
+                <div className="col-span-2">Room</div>
+                <div className="col-span-2 text-right">Action</div>
+              </div>
+            </div>
+            
+            {/* TABLE DATA */}
+            <div className="flex-1 overflow-y-auto custom-scroll p-2">
+              <div className="flex flex-col space-y-1">
                 {schedules.length > 0 ? (
                   schedules.map(sched => (
-                    <tr key={sched.id} className="hover:bg-indigo-50/50 transition-colors duration-150 group">
-                      <td className="p-4 border-b border-gray-50 font-semibold text-gray-900">
+                    // FIX 4: Mobile stacking layout gamit ang grid-cols-1 sa mobile at grid-cols-12 sa md
+                    <div key={sched.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-2 items-start md:items-center px-3 py-3 hover:bg-white/50 transition-colors border-b border-white/30 last:border-0 group rounded-lg">
+                      
+                      {/* Subject */}
+                      <div className="md:col-span-4 font-bold text-slate-800 text-[12px] md:text-[11px] pr-2">
                         {sched.subject}
-                      </td>
-                      <td className="p-4 border-b border-gray-50 text-gray-600">
-                        {sched.time}
-                      </td>
-                      <td className="p-4 border-b border-gray-50">
-                        <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md text-[10px] md:text-sm font-medium border border-gray-200">
-                          {sched.room}
-                        </span>
-                      </td>
-                      <td className="p-4 border-b border-gray-50 text-right">
-                        <button className="bg-white border border-indigo-200 text-indigo-600 px-4 py-2 rounded-lg text-xs md:text-sm font-medium hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                          Enter Class
-                        </button>
-                      </td>
-                    </tr>
+                      </div>
+                      
+                      {/* Time */}
+                      <div className="md:col-span-4 text-slate-600 text-[10px] font-semibold flex items-center gap-1.5 mt-1 md:mt-0">
+                        <div className="p-1 bg-indigo-100/50 rounded text-indigo-500 shrink-0">
+                          <Clock size={10} />
+                        </div>
+                        <span>{sched.time}</span>
+                      </div>
+                      
+                      {/* Wrapper sa mobile para magkatabi ang Room at Action */}
+                      <div className="flex items-center justify-between mt-2 md:mt-0 md:contents">
+                        {/* Room */}
+                        <div className="md:col-span-2">
+                          <span className="bg-white/80 text-slate-700 px-2 py-1 rounded-md text-[9px] font-bold border border-white shadow-sm">
+                            {sched.room}
+                          </span>
+                        </div>
+                        
+                        {/* Action */}
+                        <div className="md:col-span-2 text-right">
+                          <button className="inline-flex items-center justify-center gap-1 text-indigo-600 hover:text-indigo-800 font-bold text-[9px] uppercase tracking-wider md:opacity-80 group-hover:opacity-100 transition-all bg-white/50 px-3 md:px-2 py-1.5 rounded-md border border-white/80 shadow-sm hover:bg-white hover:shadow w-fit md:w-full md:max-w-[70px] ml-auto">
+                            Enter <ChevronRight size={10} />
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan="4" className="p-10 text-center text-gray-500">
-                      <div className="flex flex-col items-center space-y-2">
-                        <BookOpen className="w-10 h-10 text-gray-300" />
-                        <p className="italic text-sm">No schedule for today. Enjoy your free time!</p>
-                      </div>
-                    </td>
-                  </tr>
+                  <div className="py-12 flex flex-col items-center justify-center text-slate-500 h-full">
+                    <BookOpen className="w-8 h-8 text-slate-400 mb-2 opacity-50" />
+                    <p className="text-xs font-semibold">No classes scheduled.</p>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
+
+          {/* RIGHT SIDE: REMINDERS */}
+          {/* FIX 5: min-h-[350px] para maganda ang height sa mobile */}
+          <div 
+            className="animate-stagger lg:col-span-1 bg-white/40 backdrop-blur-md border border-white shadow-sm rounded-xl flex flex-col min-h-[350px] lg:min-h-0 lg:h-full overflow-hidden"
+            style={{ animationDelay: '300ms' }}
+          >
+            <div className="px-4 py-3.5 border-b border-white/60 bg-white/20 flex justify-between items-center shrink-0">
+              <h3 className="text-sm font-bold text-slate-800">Tasks & Reminders</h3>
+              <button className="text-[9px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wider bg-white/50 px-2 py-1 rounded-md border border-white shadow-sm transition-colors">
+                View All
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
+              <div className="flex items-start gap-2.5 p-2.5 bg-white/50 rounded-lg border border-white shadow-sm hover:bg-white/80 hover:-translate-y-0.5 transition-all duration-300 transform-gpu cursor-pointer group">
+                <div className="p-1.5 bg-orange-100/80 rounded-md text-orange-500 shrink-0 group-hover:scale-110 transition-transform duration-300 transform-gpu"><Zap size={14} /></div>
+                <div className="mt-0.5"><p className="text-[11px] text-slate-800 font-bold leading-tight">Grade Networking Quiz</p><p className="text-[9px] text-slate-500 font-semibold mt-0.5">Sec 3A • Due Today</p></div>
+              </div>
+              <div className="flex items-start gap-2.5 p-2.5 bg-white/50 rounded-lg border border-white shadow-sm hover:bg-white/80 hover:-translate-y-0.5 transition-all duration-300 transform-gpu cursor-pointer group">
+                <div className="p-1.5 bg-indigo-100/80 rounded-md text-indigo-500 shrink-0 group-hover:scale-110 transition-transform duration-300 transform-gpu"><BookOpen size={14} /></div>
+                <div className="mt-0.5"><p className="text-[11px] text-slate-800 font-bold leading-tight">Upload Midterm Syllabus</p><p className="text-[9px] text-slate-500 font-semibold mt-0.5">Gr 12 STEM • Due Tomorrow</p></div>
+              </div>
+              <div className="flex items-start gap-2.5 p-2.5 bg-white/50 rounded-lg border border-white shadow-sm hover:bg-white/80 hover:-translate-y-0.5 transition-all duration-300 transform-gpu cursor-pointer group">
+                <div className="p-1.5 bg-red-100/80 rounded-md text-red-500 shrink-0 group-hover:scale-110 transition-transform duration-300 transform-gpu"><AlertCircle size={14} /></div>
+                <div className="mt-0.5"><p className="text-[11px] text-slate-800 font-bold leading-tight">Finalize Computed Grades</p><p className="text-[9px] text-slate-500 font-semibold mt-0.5">All Sections • Due in 3 Days</p></div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
