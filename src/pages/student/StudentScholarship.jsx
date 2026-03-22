@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Upload, Send, CheckCircle2, Info, 
-  FileText, Loader2, AlertCircle, X 
+  FileText, Loader2, AlertCircle, X, Trash2 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -12,9 +12,9 @@ const StudentScholarship = () => {
   const [submitting, setSubmitting] = useState(false);
   const [scholarshipTypes, setScholarshipTypes] = useState([]);
   
-  // Form States
+  // Updated to handle multiple files
   const [selectedType, setSelectedType] = useState('');
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // Changed from null to empty array
   const [message, setMessage] = useState({ text: '', type: '' });
 
   const API_BASE_URL = "http://localhost/sms-api";
@@ -25,45 +25,55 @@ const StudentScholarship = () => {
   }, []);
 
   const fetchScholarships = async () => {
-  try {
-    const res = await axios.get(`${API_BASE_URL}/fetch_scholarships.php`);
-    
-    // I-check natin dito kung ano ang laman ng res.data
-    console.log("Scholarship Data Received:", res.data);
-
-    // Siguraduhin na array ang iseset natin
-    if (Array.isArray(res.data)) {
-      setScholarshipTypes(res.data);
-    } else {
-      console.error("Data received is not an array:", res.data);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/fetch_scholarships.php`);
+      if (Array.isArray(res.data)) {
+        setScholarshipTypes(res.data);
+      } else {
+        setScholarshipTypes([]);
+      }
+    } catch (err) {
       setScholarshipTypes([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("Error fetching types:", err);
-    setScholarshipTypes([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  // Function to handle multiple file selection
+  const handleFileChange = (e) => {
+    const chosenFiles = Array.from(e.target.files);
+    setFiles((prevFiles) => [...prevFiles, ...chosenFiles]);
+  };
+
+  // Function to remove a specific file from the list
+  const removeFile = (index) => {
+    setFiles(files.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedType || !file) {
-      setMessage({ text: 'Please select a scholarship and upload requirements.', type: 'error' });
+    if (!selectedType || files.length === 0) {
+      setMessage({ text: 'Please select a scholarship and upload at least one requirement.', type: 'error' });
       return;
     }
 
     setSubmitting(true);
     const formData = new FormData();
-    formData.append('email', user.email); // Identification
+    formData.append('email', user.email);
     formData.append('scholarship_id', selectedType);
-    formData.append('requirements', file);
+    
+    // Append each file to the FormData object
+    files.forEach((file, index) => {
+      formData.append(`requirements[${index}]`, file);
+    });
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/submit_application.php`, formData);
+      const res = await axios.post(`${API_BASE_URL}/submit_application.php`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       if (res.data.status === 'success') {
         setMessage({ text: 'Application submitted successfully!', type: 'success' });
-        setFile(null);
+        setFiles([]);
         setSelectedType('');
       } else {
         setMessage({ text: res.data.message, type: 'error' });
@@ -85,7 +95,6 @@ const StudentScholarship = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-12 w-full space-y-8 animate-in fade-in duration-500 font-sans">
       
-      {/* HEADER SECTION */}
       <header className="space-y-2">
         <div className="flex items-center gap-2">
            <span className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-md">
@@ -100,7 +109,6 @@ const StudentScholarship = () => {
         </p>
       </header>
 
-      {/* STATUS MESSAGE */}
       {message.text && (
         <div className={`p-5 rounded-3xl border-2 flex items-center gap-4 animate-in slide-in-from-top-2 ${
           message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'
@@ -112,7 +120,6 @@ const StudentScholarship = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* MAIN FORM */}
         <div className="md:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-10 shadow-sm space-y-8">
             
@@ -120,47 +127,72 @@ const StudentScholarship = () => {
               <label className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                 <Info size={16} className="text-blue-500"/> Select Scholarship Program
               </label>
-<select 
-  value={selectedType}
-  onChange={(e) => setSelectedType(e.target.value)}
-  className="..."
->
-  <option value="">Choose from available grants...</option>
-  {scholarshipTypes.length > 0 ? (
-    scholarshipTypes.map((type) => (
-      <option key={type.id} value={type.id}>
-        {type.name} — {type.discount_value}% Discount
-      </option>
-    ))
-  ) : (
-    <option disabled>No active scholarships found</option>
-  )}
-</select>
+              <select 
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="w-full p-4 rounded-2xl border-2 border-slate-100 focus:border-blue-400 outline-none transition-all font-bold text-sm"
+              >
+                <option value="">Choose from available grants...</option>
+                {scholarshipTypes.length > 0 ? (
+                  scholarshipTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} — {type.discount_value}% Discount
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No active scholarships found</option>
+                )}
+              </select>
             </section>
 
             <section className="space-y-4">
               <label className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] flex items-center gap-2">
                 <FileText size={16} className="text-blue-500"/> Upload Documentary Requirements
               </label>
+              
               <div className="relative group">
                 <input 
                   type="file" 
-                  onChange={(e) => setFile(e.target.files[0])}
+                  onChange={handleFileChange}
+                  multiple // ALLOWS MULTIPLE SELECTION
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   accept=".pdf,.jpg,.jpeg,.png"
                 />
                 <div className={`border-2 border-dashed rounded-[2rem] p-12 text-center transition-all ${
-                  file ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50 group-hover:border-blue-400'
+                  files.length > 0 ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50 group-hover:border-blue-400'
                 }`}>
-                  <Upload className={`mx-auto mb-4 ${file ? 'text-emerald-500' : 'text-slate-400'}`} size={40} />
+                  <Upload className={`mx-auto mb-4 ${files.length > 0 ? 'text-emerald-500' : 'text-slate-400'}`} size={40} />
                   <p className="text-sm font-black text-slate-700 uppercase tracking-tight">
-                    {file ? file.name : "Drop files here or click to browse"}
+                    {files.length > 0 ? `${files.length} file(s) selected` : "Drop files here or click to browse"}
                   </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">
-                    PDF, PNG, or JPG (Max 5MB)
+                    PDF, PNG, or JPG (Max 5MB each)
                   </p>
                 </div>
               </div>
+
+              {/* FILE LIST VIEW */}
+              {files.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  {files.map((f, index) => (
+                    <div key={index} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <FileText size={14} className="text-blue-500" />
+                        <span className="text-[10px] font-black text-slate-600 truncate max-w-[200px] uppercase">
+                          {f.name}
+                        </span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="text-red-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <button 
@@ -175,15 +207,15 @@ const StudentScholarship = () => {
           </form>
         </div>
 
-        {/* SIDEBAR INFO */}
         <div className="space-y-6">
           <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="font-black text-[10px] uppercase tracking-widest mb-6 text-slate-400 italic">Submission Guide</h3>
               <ul className="space-y-4">
                 <GuideItem step="1" text="Ensure GWA or Indigency requirements are scanned clearly." />
-                <GuideItem step="2" text="The Registrar will verify your documents within 2-3 days." />
-                <GuideItem step="3" text="The Cashier will apply the discount to your billing once approved." />
+                <GuideItem step="2" text="You can upload multiple documents (e.g., Report Card and Tax Exemption)." />
+                <GuideItem step="3" text="The Registrar will verify your documents within 2-3 days." />
+                <GuideItem step="4" text="The Cashier will apply the discount to your billing once approved." />
               </ul>
             </div>
             <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
