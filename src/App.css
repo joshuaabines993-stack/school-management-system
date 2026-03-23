@@ -77,3 +77,9 @@ body {
 .shine-effect:hover::after {
   left: 120%;
 }
+
+@keyframes scan {
+  0% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(100px); opacity: 0.5; }
+  100% { transform: translateY(0); opacity: 1; }
+}
