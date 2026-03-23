@@ -1,207 +1,276 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, Mail, Phone, MapPin, Briefcase, 
-  BookOpen, Clock, Award, WifiOff, ArrowLeft 
+  BookOpen, Clock, Award, Edit 
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // Para sa back button
+import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
+import { useAuth } from '../../context/AuthContext'; 
+import OfflineBanner from '../../utils/offlinebanner'; 
 
 const TeacherProfile = () => {
+  const { user } = useAuth(); 
   const [teacher, setTeacher] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isServerOffline, setIsServerOffline] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false); 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Simulated API Fetch: fetch(`/api/teachers/profile?id=${teacherId}`)
-    setTimeout(() => {
-      // Simulating a server offline scenario but loading cached data
-      setIsServerOffline(true);
+  const API_BASE_URL = "http://localhost/sms-api"; 
+
+  const fetchTeacherData = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    setIsRetrying(true);
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/get_user.php?id=${user?.id}`);
+      setIsServerOffline(false); 
+
+      let dbData = response.data.data ? response.data.data : response.data;
+
+      if (dbData && Object.keys(dbData).length > 0) {
+        setTeacher({
+          ...dbData, 
+          id: dbData.id || user?.id,
+          firstName: dbData.firstName || user?.full_name?.split(' ')[0] || 'Unknown',
+          lastName: dbData.lastName || user?.full_name?.split(' ').slice(1).join(' ') || '',
+          profile_image: dbData.profile_image || user?.profile_image || null,
+          role: dbData.role || user?.role || 'Teacher',
+          subjects: dbData.subjects || []
+        });
+      } else {
+        throw new Error("No profile data found");
+      }
+
+    } catch (error) {
+      setIsServerOffline(true); 
       
-      // Default/Mock Data
+      const nameParts = user?.full_name?.split(' ') || ['Teacher', ''];
+      const fName = nameParts[0];
+      const lName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
       setTeacher({
-        id: 'TCH-2024-089',
-        firstName: 'Ricardo',
-        lastName: 'Dalisay',
-        role: 'Senior High School Teacher',
-        department: 'Mathematics Department',
-        email: 'r.dalisay@school.edu.ph',
-        phone: '+63 917 123 4567',
-        address: '123 Rizal St., Obando, Bulacan',
-        status: 'Active',
-        dateHired: 'June 2018',
-        subjects: [
-          { id: 1, code: 'MATH101', name: 'General Mathematics', section: 'Grade 11 - STEM A', schedule: 'MWF 8:00 AM - 9:30 AM' },
-          { id: 2, code: 'MATH102', name: 'Pre-Calculus', section: 'Grade 11 - STEM B', schedule: 'TTH 10:00 AM - 11:30 AM' },
-          { id: 3, code: 'STAT201', name: 'Statistics & Probability', section: 'Grade 12 - ABM A', schedule: 'MWF 1:00 PM - 2:30 PM' }
-        ]
+        id: user?.id || null,
+        firstName: fName || null,
+        lastName: lName || null,
+        profile_image: user?.profile_image || null,
+        role: user?.role || null,
+        department: null,
+        email: null,
+        phone: null,
+        address: null,
+        status: null,
+        dateHired: null,
+        subjects: [] 
       });
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    } finally {
+      if (showLoading) setIsLoading(false); 
+      setTimeout(() => setIsRetrying(false), 800);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) fetchTeacherData(true);
+  }, [user, fetchTeacherData]);
 
   if (isLoading) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center py-32">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 font-medium animate-pulse">Loading profile data...</p>
+      <div className="flex items-center justify-center min-h-[60vh] bg-transparent">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-4 border-white/40 border-t-indigo-600 rounded-full animate-spin shadow-md"></div>
+          <div className="text-sm font-bold text-indigo-600">Loading profile data...</div>
+        </div>
       </div>
     );
   }
 
+  if (!teacher) return null;
+
   return (
-    <div className="w-full animate-fade-in bg-transparent">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="w-full flex flex-col bg-transparent pb-10 lg:pb-6">
+      
+      <style>{`
+        @keyframes fadeInUpGPU {
+          from { opacity: 0; transform: translate3d(0, 15px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        .animate-stagger {
+          animation: fadeInUpGPU 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          opacity: 0;
+          will-change: opacity, transform;
+          backface-visibility: hidden;
+        }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto w-full flex flex-col gap-3 lg:gap-4">
         
-        {/* Header Navigation */}
-        <div className="flex items-center space-x-4 mb-6">
-        
+        {/* ========================================== */}
+        {/* HEADER SECTION (WITH EDIT PROFILE BUTTON) */}
+        {/* ========================================== */}
+        <div 
+          className="animate-stagger shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/40 backdrop-blur-md px-5 py-4 rounded-xl border border-white shadow-sm" 
+          style={{ animationDelay: '0ms' }}
+        >
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Teacher Profile</h2>
-            <p className="text-sm text-slate-500">View and manage faculty information.</p>
+            <h2 className="text-xl font-extrabold text-slate-800 tracking-tight leading-none">Your Profile</h2>
+            <p className="text-[11px] text-slate-600 font-medium mt-1">View and manage your professional information.</p>
           </div>
+          
+          {/* Edit Profile Button / Link */}
+          <Link 
+            to="/teacher/profile" 
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold shadow-sm shadow-indigo-500/20 transition-all w-full sm:w-auto justify-center"
+          >
+            <Edit size={14} /> Edit Profile
+          </Link>
         </div>
 
-        {/* Offline Warning Banner */}
-        {isServerOffline && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
-            <div className="bg-amber-100 p-2 rounded-lg text-amber-600">
-              <WifiOff size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-amber-800 tracking-tight">Viewing Cached Profile</h4>
-              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                The server is currently unreachable. You are viewing the default data.
-              </p>
-            </div>
-          </div>
-        )}
-
-       {/* TOP SECTION: Basic Info Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Subtle Banner Background */}
-          <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
-          
-          <div className="px-6 sm:px-10 pb-8">
-            {/* Flex Container na may Negative Top Margin para humila pataas */}
-            <div className="flex flex-col sm:flex-row sm:items-end gap-5 -mt-12 mb-2">
-              
-              {/* Avatar Box - Gumamit ng shrink-0 para hindi mapisat */}
-              <div className="relative border-4 border-white rounded-2xl bg-white shadow-sm shrink-0">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 text-3xl sm:text-4xl font-extrabold">
-                  {teacher.firstName.charAt(0)}{teacher.lastName.charAt(0)}
-                </div>
-              </div>
-
-              {/* Name, Role & Status Container */}
-              <div className="flex-1 pb-1 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mt-2 sm:mt-0">
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
-                    {teacher.firstName} {teacher.lastName}
-                  </h1>
-                  <p className="text-slate-500 font-medium mt-1.5 flex items-center gap-2 text-sm sm:text-base">
-                    <Briefcase size={16} /> {teacher.role} • {teacher.department}
-                  </p>
-                </div>
-                
-                <div className="flex flex-col items-start sm:items-end gap-2">
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold uppercase tracking-wide">
-                    {teacher.status}
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">Emp ID: {teacher.id}</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
+        {/* OFFLINE BANNER */}
+        <div className="shrink-0">
+          <OfflineBanner isServerOffline={isServerOffline} isRetrying={isRetrying} onRetry={() => fetchTeacherData(false)} />
         </div>
 
-        {/* BOTTOM SECTION: 2-Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Left Column: Personal Information */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-              <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <User size={18} className="text-blue-600" />
-                Contact Information
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <Mail size={18} className="text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Email Address</p>
-                    <p className="text-sm font-medium text-slate-800">{teacher.email}</p>
-                  </div>
+        {/* ========================================== */}
+        {/* AVATAR & INFO CARD (NO COVER PHOTO) */}
+        {/* ========================================== */}
+        <div className="animate-stagger shrink-0 bg-white/40 backdrop-blur-md rounded-xl border border-white shadow-sm p-5 sm:p-6" style={{ animationDelay: '100ms' }}>
+          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-6">
+            
+            {/* Avatar Box */}
+            <div className="relative border-4 border-white/80 rounded-[1.25rem] bg-white/50 backdrop-blur-sm shadow-sm shrink-0">
+              {teacher?.profile_image ? (
+                <img src={`${API_BASE_URL}/uploads/profiles/${teacher.profile_image}`} alt="Profile" className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover" />
+              ) : (
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-indigo-100/80 rounded-xl flex items-center justify-center text-indigo-600 text-4xl font-extrabold uppercase">
+                  {teacher?.firstName?.charAt(0) || ''}{teacher?.lastName?.charAt(0) || ''}
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <Phone size={18} className="text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Phone Number</p>
-                    <p className="text-sm font-medium text-slate-800">{teacher.phone}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <MapPin size={18} className="text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Home Address</p>
-                    <p className="text-sm font-medium text-slate-800 leading-relaxed">{teacher.address}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 pt-4 border-t border-slate-100">
-                  <Award size={18} className="text-slate-400 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Date Hired</p>
-                    <p className="text-sm font-medium text-slate-800">{teacher.dateHired}</p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
 
-          {/* Right Column: Academic Load / LMS Integration */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <BookOpen size={18} className="text-blue-600" />
-                  Current Teaching Load
-                </h3>
-                <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
-                  {teacher.subjects.length} Subjects
+            {/* Info Container */}
+            <div className="flex-1 w-full flex flex-col sm:flex-row sm:justify-between items-center sm:items-center gap-4 sm:gap-0">
+              
+              {/* Name & Role */}
+              <div className="text-center sm:text-left">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 leading-tight capitalize tracking-tight">
+                  {teacher.firstName || 'Unknown'} {teacher.lastName || ''}
+                </h1>
+                <p className="text-slate-600 font-bold mt-1.5 flex items-center justify-center sm:justify-start gap-1.5 text-[11px] sm:text-xs uppercase tracking-wider">
+                  <Briefcase size={14} className="text-indigo-500" /> 
+                  <span>{teacher.role || 'Teacher'}</span>
+                  <span className="text-slate-600 mx-0.5">•</span>
+                  <span>{teacher.department || 'Department'}</span>
+                </p>
+              </div>
+              
+              {/* Status & ID */}
+              <div className="flex flex-wrap items-center justify-center sm:flex-col sm:items-end gap-2 sm:gap-1.5">
+                <span className={`px-3 py-1.5 border rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm ${teacher.status ? 'bg-emerald-100/60 text-emerald-700 border-white' : 'bg-white/60 text-slate-500 border-white'}`}>
+                  {teacher.status || 'Active'}
+                </span>
+                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider bg-white/60 px-2.5 py-1 rounded-md border border-white shadow-sm">
+                  EMP ID: {teacher.id || 'N/A'}
                 </span>
               </div>
 
-              <div className="space-y-3">
-                {teacher.subjects.map((subject) => (
-                  <div key={subject.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-colors group">
-                    <div className="flex justify-between items-start gap-4">
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================== */}
+        {/* BOTTOM GRID */}
+        {/* ========================================== */}
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-3 md:gap-4 items-start">
+          
+          {/* LEFT: CONTACT INFO */}
+          <div className="animate-stagger lg:col-span-1 w-full bg-white/40 backdrop-blur-md rounded-xl border border-white shadow-sm flex flex-col" style={{ animationDelay: '200ms' }}>
+            <div className="px-5 py-3.5 border-b border-white/60 bg-white/20">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <User size={16} className="text-indigo-600" /> Contact Information
+              </h3>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-indigo-100/50 rounded-md text-indigo-500 shrink-0"><Mail size={14} /></div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Email Address</p>
+                  <p className={`text-xs font-bold ${teacher.email ? 'text-slate-800' : 'text-slate-400 italic'}`}>{teacher.email || 'Not provided'}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-indigo-100/50 rounded-md text-indigo-500 shrink-0"><Phone size={14} /></div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Phone Number</p>
+                  <p className={`text-xs font-bold ${teacher.phone ? 'text-slate-800' : 'text-slate-400 italic'}`}>{teacher.phone || 'Not provided'}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-indigo-100/50 rounded-md text-indigo-500 shrink-0"><MapPin size={14} /></div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Home Address</p>
+                  <p className={`text-xs font-bold leading-snug ${teacher.address ? 'text-slate-800' : 'text-slate-400 italic'}`}>{teacher.address || 'Not specified'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 pt-4 border-t border-white/50">
+                <div className="p-1.5 bg-indigo-100/50 rounded-md text-indigo-500 shrink-0"><Award size={14} /></div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-0.5">Date Hired</p>
+                  <p className={`text-xs font-bold ${teacher.dateHired ? 'text-slate-800' : 'text-slate-400 italic'}`}>{teacher.dateHired || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: TEACHING LOAD */}
+          <div className="animate-stagger lg:col-span-2 w-full bg-white/40 backdrop-blur-md rounded-xl border border-white shadow-sm flex flex-col" style={{ animationDelay: '300ms' }}>
+            <div className="px-5 py-3.5 border-b border-white/60 bg-white/20 flex justify-between items-center">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <BookOpen size={16} className="text-indigo-600" /> Teaching Load
+              </h3>
+              <span className="text-[10px] font-black uppercase tracking-widest bg-white/60 text-slate-600 px-2.5 py-1 rounded-md border border-white shadow-sm">
+                {teacher.subjects?.length || 0} Subjects
+              </span>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {teacher.subjects && teacher.subjects.length > 0 ? (
+                teacher.subjects.map((subject) => (
+                  <div key={subject.id} className="p-3.5 rounded-xl border border-white bg-white/50 hover:bg-white/80 hover:-translate-y-0.5 transition-all duration-300 transform-gpu shadow-sm group">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase tracking-wider">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded-md border border-white uppercase tracking-widest shadow-sm">
                             {subject.code}
                           </span>
                         </div>
-                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition-colors">
+                        <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors tracking-tight">
                           {subject.name}
                         </h4>
-                        <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5">
-                          <User size={14} /> {subject.section}
+                        <p className="text-[11px] text-slate-600 font-medium mt-0.5 flex items-center gap-1.5">
+                          <User size={12} className="text-indigo-400" /> {subject.section}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs font-medium text-slate-500 flex items-center justify-end gap-1.5 mt-1">
-                          <Clock size={14} className="text-slate-400" />
+                      
+                      <div className="sm:text-right">
+                        <p className="text-[11px] font-bold text-slate-500 flex items-center sm:justify-end gap-1.5 bg-white/60 px-2.5 py-1.5 rounded-md border border-white shadow-sm w-fit sm:w-auto">
+                          <Clock size={14} className="text-indigo-500 shrink-0" />
                           {subject.schedule}
                         </p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-500">
+                  <BookOpen size={36} className="mb-3 text-slate-400 opacity-50" />
+                  <p className="text-xs font-bold text-slate-600">No subjects assigned currently.</p>
+                  <p className="text-[10px] mt-1 font-medium">Teaching loads will appear here once connected.</p>
+                </div>
+              )}
             </div>
           </div>
 

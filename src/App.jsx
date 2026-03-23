@@ -39,6 +39,10 @@ import ScholarshipCatalog from './pages/cashier/ScholarshipCatalog';
 import TeacherDashboard from './pages/teacher/teacherdashboard';
 import TeacherNotify from './pages/teacher/TeacherNotify'; 
 import TeacherProfile from './pages/teacher/TeacherProfile';
+import TeacherClasses from './pages/teacher/TeacherClasses';
+import GradeManagement from './pages/teacher/GradeManagement';
+import TeacherSubjects from './pages/teacher/TeacherSubjects';
+
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import StudentLayout from './layouts/StudentLayout';
@@ -125,7 +129,11 @@ function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<TeacherDashboard />} />
             <Route path="announcements" element={<TeacherNotify />} />
+            <Route path="classes" element={<TeacherClasses />} />
+            <Route path="subjects" element={<TeacherSubjects />} />
             <Route path="profile" element={<TeacherProfile />} />
+            <Route path="/teacher/sections/:classId" element={<GradeManagement />} />
+          
           </Route>
 
           {/* 6. LMS / STUDENTS ROUTES */}

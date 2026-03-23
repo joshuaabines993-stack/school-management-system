@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Settings, X, Camera, UserCircle, Save } from 'lucide-react';
+import { Settings, X, Camera, UserCircle, Save, Lock } from 'lucide-react';
 
 const UserProfileModal = ({ isOpen, onClose, user, branding, logout }) => {
   const [profileLoading, setProfileLoading] = useState(false);
@@ -93,13 +93,33 @@ const UserProfileModal = ({ isOpen, onClose, user, branding, logout }) => {
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest flex items-center gap-1.5">
                 <UserCircle size={12}/> Full Name
               </label>
-              <input 
-                type="text" 
-                required
-                value={profileData.full_name} 
-                onChange={e=>setProfileData({...profileData, full_name: e.target.value})} 
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 text-sm font-bold text-slate-700" 
-              />
+             <div className="relative">
+                <input 
+                  type="text" 
+                  required
+                  value={profileData.full_name} 
+                  onChange={e=>setProfileData({...profileData, full_name: e.target.value})} 
+                  readOnly={user?.role !== 'admin'} 
+                  className={`w-full p-4 pr-12 border border-slate-100 rounded-2xl outline-none text-sm font-bold text-slate-700 
+                    ${user?.role !== 'admin' 
+                      ? 'bg-slate-200 cursor-not-allowed text-slate-500' 
+                      : 'bg-slate-50 focus:border-blue-500' 
+                    }`} 
+                />
+                
+                {/* LALABAS LANG ANG LOCK ICON KUNG HINDI ADMIN */}
+                {user?.role !== 'admin' && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Lock size={18} />
+                  </div>
+                )}
+              </div>
+
+              {user?.role !== 'admin' && (
+                <p className="text-[10px] text-red-500 italic ml-2 mt-1 font-medium">
+                  * Please contact the Administrator to change your registered name.
+                </p>
+              )}
             </div>
           </div>
         </div>

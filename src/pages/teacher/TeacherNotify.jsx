@@ -1,168 +1,196 @@
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Calendar, AlertCircle, Info, FileText, DollarSign, ShieldAlert, WifiOff } from 'lucide-react';
+import OfflineBanner from '../../utils/offlinebanner'; // <-- IMPORT NG REUSABLE BANNER
 
 const TeacherNotify = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isServerOffline, setIsServerOffline] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false); // <-- PARA SA RETRY ANIMATION
 
-  useEffect(() => {
-    // STEP 1: KUNIN ANG CACHED DATA SA LOCAL STORAGE (Kung meron man)
+  // INILABAS ANG FETCH FUNCTION PARA PWEDENG I-CALL NG RETRY BUTTON
+  const fetchAnnouncements = async () => {
+    setIsRetrying(true);
     const cachedAnnouncements = localStorage.getItem('sms_teacher_announcements');
-    
-    if (cachedAnnouncements) {
-      // Kung may naka-save na, ipakita agad para walang waiting time ang user
+
+    if (cachedAnnouncements && !isRetrying) {
       setAnnouncements(JSON.parse(cachedAnnouncements));
       setIsLoading(false); 
     }
 
-    // STEP 2: KUMUHA NG LATEST DATA SA PHP BACKEND
-    // Pinalitan na natin ang setTimeout ng totoong fetch request
-    fetch('http://localhost/sms_backend/api/get_announcements.php')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Server error');
-        }
-        return response.json();
-      })
-      .then((data) => {
-        // STEP 3A: SUCCESS! Nakuha ang bagong data
-        setAnnouncements(data);
-        
-        // I-save ang bagong data sa Local Storage para sa susunod na offline
-        localStorage.setItem('sms_teacher_announcements', JSON.stringify(data));
-        
-        setIsServerOffline(false); // Siguraduhing nakatago ang offline banner
-      })
-      .catch((error) => {
-        // STEP 3B: ERROR! (Patay ang XAMPP, Walang Internet, o Mali ang URL)
-        console.error("Connection failed:", error);
-        setIsServerOffline(true); // Ipalabas ang yellow warning banner
+    try {
+      const response = await fetch('http://localhost/sms_backend/api/get_announcements.php');
+      if (!response.ok) throw new Error('Server error');
+      
+      const data = await response.json();
+      setAnnouncements(data);
+      localStorage.setItem('sms_teacher_announcements', JSON.stringify(data));
+      setIsServerOffline(false); 
+    } catch (error) {
+      console.error("Connection failed. Showing skeleton data:", error);
+      setIsServerOffline(true); 
 
-        // FALLBACK: Kung walang nakuha sa server AT walang laman ang cache, 
-        // maglalagay tayo ng default dummy data para hindi blangko ang screen.
-        if (!cachedAnnouncements) {
-          setAnnouncements([
-            {
-              id: 1, department: 'Registrar', author: 'Maria Santos (Head Registrar)', date: 'March 16, 2026',
-              title: 'Deadline for Encoding of Final Grades', 
-              content: 'Please be reminded that the deadline for the encoding of Final Grades for the 2nd Semester is on Friday, March 20. The system will automatically lock the grading modules at exactly 11:59 PM.', type: 'urgent' 
-            },
-            {
-              id: 2, department: 'Cashier', author: 'Accounting Office', date: 'March 14, 2026',
-              title: 'Exam Clearances & Promissory Notes', 
-              content: 'For the upcoming final examinations, please check the "Payment Status" of your students in the Class Management tab.', type: 'warning'
-            },
-            {
-              id: 3, department: 'Admin', author: 'System Administrator', date: 'March 10, 2026',
-              title: 'Scheduled System Maintenance', 
-              content: 'The School Management System (SMS) will undergo routine maintenance this Saturday from 1:00 AM to 4:00 AM.', type: 'info'
-            }
-          ]);
-        }
-      })
-      .finally(() => {
-        setIsLoading(false); // Patigilin ang loading spinner
-      });
-  }, []);
-
-  const getDepartmentStyle = (department) => {
-    switch (department) {
-      case 'Registrar':
-        return { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: <FileText size={20} /> };
-      case 'Cashier':
-        return { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', icon: <DollarSign size={20} /> };
-      case 'Admin':
-        return { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: <ShieldAlert size={20} /> };
-      default:
-        return { color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200', icon: <Megaphone size={20} /> };
+      // KUNG WALANG CACHE, MAGPAPAKITA TAYO NG SKELETON DATA
+      if (!cachedAnnouncements) {
+        setAnnouncements([
+          {
+            id: null, 
+            department: null, 
+            author: null, 
+            date: null,
+            title: null, 
+            content: null, 
+            type: null 
+          }
+        ]);
+      }
+    } finally {
+      setIsLoading(false); 
+      setTimeout(() => setIsRetrying(false), 800); // Fake delay for smooth UI transition
     }
   };
 
-  const getPriorityBadge = (type) => {
-    if (type === 'urgent') return <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold uppercase flex items-center gap-1"><AlertCircle size={12}/> Urgent</span>;
-    if (type === 'warning') return <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold uppercase">Notice</span>;
-    return <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Info</span>;
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  // IN-ADJUST PARA BUMAGAY SA GLASSMORPHISM (Translucent Backgrounds & White Borders)
+  const getDepartmentStyle = (department) => {
+    switch (department) {
+      case 'Registrar':
+        return { color: 'text-emerald-700', bg: 'bg-emerald-100/60', border: 'border-white/60', icon: <FileText size={16} /> };
+      case 'Cashier':
+        return { color: 'text-orange-700', bg: 'bg-orange-100/60', border: 'border-white/60', icon: <DollarSign size={16} /> };
+      case 'Admin':
+        return { color: 'text-blue-700', bg: 'bg-blue-100/60', border: 'border-white/60', icon: <ShieldAlert size={16} /> };
+      default:
+        return { color: 'text-slate-700', bg: 'bg-white/40', border: 'border-white/60', icon: <Megaphone size={16} /> };
+    }
   };
 
+  // IN-ADJUST PARA BUMAGAY SA GLASSMORPHISM
+  const getPriorityBadge = (type) => {
+    if (type === 'urgent') return <span className="bg-red-100/80 text-red-700 border border-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1"><AlertCircle size={10}/> Urgent</span>;
+    if (type === 'warning') return <span className="bg-amber-100/80 text-amber-700 border border-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm">Notice</span>;
+    if (type === 'info') return <span className="bg-blue-100/80 text-blue-700 border border-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm">Info</span>;
+    
+    return <span className="bg-white/60 text-slate-500 border border-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm">No Type</span>;
+  };
+
+  if (isLoading && !announcements.length) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] bg-transparent">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-4 border-white/40 border-t-indigo-600 rounded-full animate-spin shadow-md"></div>
+          <div className="text-sm font-bold text-indigo-600">Loading announcements...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-full min-h-full p-4 md:p-8 animate-fade-in bg-gray-50/50">
-      <div className="max-w-4xl mx-auto">
+    // ROOT CONTAINER - TINANGGAL ANG DOUBLE PADDING DITO
+    <div className="w-full h-full bg-transparent">
+      
+      {/* GPU-OPTIMIZED CSS ANIMATION */}
+      <style>{`
+        @keyframes fadeInUpGPU {
+          from { opacity: 0; transform: translate3d(0, 15px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        .animate-stagger {
+          animation: fadeInUpGPU 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          opacity: 0;
+          will-change: opacity, transform;
+        }
+      `}</style>
+
+      <div className="max-w-4xl mx-auto space-y-4">
         
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-8 border-b border-gray-200 pb-6">
-          <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md w-fit">
-            <Megaphone size={24} />
-          </div>
-          <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Official Announcements</h2>
-            <p className="text-gray-500 font-medium">Updates and memos from school administration.</p>
+        {/* ========================================== */}
+        {/* HEADER SECTION - COMPACT GLASSMORPHISM */}
+        {/* ========================================== */}
+        <div 
+          className="animate-stagger flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/40 backdrop-blur-md px-5 py-4 rounded-xl border border-white shadow-sm"
+          style={{ animationDelay: '0ms' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-sm shadow-indigo-500/20">
+              <Megaphone size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-800 tracking-tight leading-none">Announcements</h2>
+              <p className="text-[11px] text-slate-600 font-medium mt-1">Updates and memos from school administration.</p>
+            </div>
           </div>
         </div>
 
-        {/* OFFLINE WARNING BANNER */}
-        {isServerOffline && !isLoading && (
-          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
-            <div className="bg-amber-100 p-2 rounded-lg text-amber-600 shrink-0">
-              <WifiOff size={20} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-amber-800 tracking-tight">Viewing Cached Announcements</h4>
-              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                The server is currently unreachable. You are viewing the offline data. New announcements might not be visible.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* ========================================== */}
+        {/* REUSABLE OFFLINE BANNER */}
+        {/* ========================================== */}
+        <OfflineBanner 
+          isServerOffline={isServerOffline} 
+          isRetrying={isRetrying} 
+          onRetry={fetchAnnouncements} // FIX: Pinasa ang function para sa Retry
+        />
 
-        {/* Content Area */}
-        {isLoading && !announcements.length ? (
-          <div className="flex justify-center py-20">
-            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {announcements.map((news) => {
-              const deptStyle = getDepartmentStyle(news.department);
-              
-              return (
-                <div key={news.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300">
-                  {/* Card Header */}
-                  <div className={`px-6 py-3 flex flex-wrap justify-between items-center gap-2 border-b ${deptStyle.bg} ${deptStyle.border}`}>
-                    <div className="flex items-center space-x-2">
-                      <span className={`${deptStyle.color}`}>{deptStyle.icon}</span>
-                      <span className={`font-bold uppercase tracking-widest text-xs ${deptStyle.color}`}>
-                        {news.department} Dept
+        {/* ========================================== */}
+        {/* ANNOUNCEMENTS LIST */}
+        {/* ========================================== */}
+        <div className="space-y-4">
+          {announcements.map((news, index) => {
+            const deptStyle = getDepartmentStyle(news.department);
+            
+            return (
+              <div 
+                key={news.id || index} 
+                className="animate-stagger bg-white/40 backdrop-blur-md rounded-xl shadow-sm border border-white overflow-hidden hover:bg-white/60 hover:-translate-y-0.5 transition-all duration-300 transform-gpu group"
+                style={{ animationDelay: `${100 + (index * 50)}ms` }}
+              >
+                {/* Card Header (Glassmorphism adjusted) */}
+                <div className={`px-5 py-2.5 flex flex-wrap justify-between items-center gap-2 border-b backdrop-blur-sm ${deptStyle.bg} ${deptStyle.border}`}>
+                  <div className="flex items-center space-x-2">
+                    <span className={`${deptStyle.color} bg-white/50 p-1.5 rounded-md border border-white/50 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                      {deptStyle.icon}
+                    </span>
+                    <span className={`font-black uppercase tracking-widest text-[9px] ${news.department ? deptStyle.color : 'text-slate-400 italic'}`}>
+                      {news.department ? `${news.department} Dept` : 'Department (NULL)'}
+                    </span>
+                  </div>
+                  {getPriorityBadge(news.type)}
+                </div>
+
+                {/* Card Body */}
+                <div className="p-5">
+                  <h3 className={`text-base font-extrabold mb-2 leading-tight tracking-tight ${news.title ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                    {news.title || 'Title missing in database'}
+                  </h3>
+                  <p className={`text-[11px] leading-relaxed mb-4 break-words ${news.content ? 'text-slate-600' : 'text-slate-400 italic'}`}>
+                    {news.content || 'Content missing in database. Please add a description for this announcement.'}
+                  </p>
+                  
+                  {/* Card Footer */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-[10px] text-slate-500 font-bold border-t border-white/50 pt-3">
+                    <div className="flex items-center">
+                      <Info size={12} className="mr-1.5 text-indigo-400" />
+                      Posted by: <span className={`ml-1 ${news.author ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                        {news.author || 'Author (NULL)'}
                       </span>
                     </div>
-                    {getPriorityBadge(news.type)}
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-800 mb-3 leading-tight">{news.title}</h3>
-                    <p className="text-gray-600 leading-relaxed mb-6 break-words">
-                      {news.content}
-                    </p>
-                    
-                    {/* Card Footer */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-xs text-gray-400 font-semibold border-t pt-4">
-                      <div className="flex items-center">
-                        <Info size={14} className="mr-1.5 text-indigo-400" />
-                        Posted by: <span className="ml-1 text-gray-600">{news.author}</span>
-                      </div>
-                      <div className="hidden sm:block text-gray-300">•</div>
-                      <div className="flex items-center">
-                        <Calendar size={14} className="mr-1.5 text-indigo-400" />
-                        {news.date}
-                      </div>
+                    <div className="hidden sm:block text-slate-300">•</div>
+                    <div className="flex items-center">
+                      <Calendar size={12} className="mr-1.5 text-indigo-400" />
+                      <span className={news.date ? 'text-slate-700' : 'text-slate-400 italic'}>
+                        {news.date || 'Date (NULL)'}
+                      </span>
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
+
       </div>
     </div>
   );
