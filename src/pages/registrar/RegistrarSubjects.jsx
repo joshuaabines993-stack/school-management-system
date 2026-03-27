@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 
 const RegistrarSubjects = () => {
-  const { branding, token, API_BASE_URL} = useAuth();
+  const { branding, token, API_BASE_URL } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,27 +15,41 @@ const RegistrarSubjects = () => {
 
   // Data States
   const [subjects, setSubjects] = useState([]);
-  const [programs, setPrograms] = useState([]); // Para sa SHS/College courses dropdown
+  const [programs, setPrograms] = useState([]);
 
-  // Form State
+  // ARCHITECT'S CONSTANTS
+  const LEVEL_CONFIG = {
+    'K-10': {
+      levels: ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+      needsProgram: false
+    },
+    'SHS': {
+      levels: ['Grade 11', 'Grade 12'],
+      needsProgram: true
+    },
+    'College': {
+      levels: ['1st Year', '2nd Year', '3rd Year', '4th Year'],
+      needsProgram: true
+    }
+  };
+
   const initialForm = {
+    level_category: 'K-10', // NEW: Important for filtering
     subject_code: '',
     subject_description: '',
-    units: 0,
-    department: 'K-12', // Custom state para mag-toggle ng fields
-    grade_level_applicable: 'Grade 7',
-    program_id: '', // Null kapag K-12
-    course_applicable: 'All'
+    units: 3,
+    grade_level_applicable: 'Grade 1',
+    program_id: '', 
+    semester: 'N/A'
   };
   const [formData, setFormData] = useState(initialForm);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Dito mo i-rename ang PHP mo later sa get_subject_data.php para mas malinis
       const res = await axios.get(`${API_BASE_URL}/registrar/get_subjects.php`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -43,241 +57,158 @@ const RegistrarSubjects = () => {
         setSubjects(res.data.subjects || []);
         setPrograms(res.data.programs || []);
       }
-    } catch (error) {
-      console.error("Error fetching data", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error(error); }
+    finally { setLoading(false); }
+  };
+
+  const handleLevelCategoryChange = (cat) => {
+    setFormData({
+      ...formData,
+      level_category: cat,
+      grade_level_applicable: LEVEL_CONFIG[cat].levels[0], // Auto-select first level
+      program_id: '',
+      semester: cat === 'K-10' ? 'N/A' : '1st'
+    });
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaveLoading(true);
-    
     try {
       const res = await axios.post(`${API_BASE_URL}/registrar/add_subject.php`, formData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
-      
       if (res.data.success) {
-        alert("Subject successfully added!");
         setShowModal(false);
         setFormData(initialForm);
         fetchData(); 
-      } else {
-        alert("Error: " + res.data.message);
-      }
-    } catch (error) {
-      alert("Server Error while saving.");
-    } finally {
-      setSaveLoading(false);
-    }
+      } else { alert("Error: " + res.data.message); }
+    } catch (error) { alert("Server Error"); }
+    finally { setSaveLoading(false); }
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormData(initialForm);
-  };
-
-  // 2. Function para sa pag-delete ng subject
-  const handleDelete = async (id, code) => {
-    if (!window.confirm(`Sigurado ka bang buburahin ang subject na ${code}?`)) return;
-    
-    try {
-      const res = await axios.post(`${API_BASE_URL}/registrar/delete_subject.php`, { id }, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (res.data.success) {
-        fetchData(); // I-refresh ang table
-      } else {
-        alert("Error: " + res.data.message);
-      }
-    } catch (error) {
-      alert("Server Error while deleting.");
-      console.error(error);
-    }
-  };
-
- // Dagdagan ng empty array fallback
-const filteredSubjects = (subjects || []).filter(s => 
-  `${s.subject_code} ${s.subject_description} ${s.grade_level_applicable}`.toLowerCase().includes(searchQuery.toLowerCase())
-);
+  const filteredSubjects = (subjects || []).filter(s => 
+    `${s.subject_code} ${s.subject_description}`.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+    <div className="space-y-6 text-left">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <BookOpen className="text-indigo-500" size={32} /> Subject Management
+          <h1 className="text-3xl font-black text-slate-800 tracking-tighter flex items-center gap-3 uppercase">
+            <BookOpen className="text-blue-600" size={32} /> Subject Registry
           </h1>
-          <p className="text-slate-500 font-medium mt-1">Add and organize curriculum subjects</p>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1 italic">Curriculum Management & Masterlist</p>
         </div>
-
-        <button 
-          onClick={() => setShowModal(true)} 
-          className="group relative overflow-hidden text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 shadow-xl font-bold transition-all duration-300 hover:scale-105 active:scale-95" 
-          style={{backgroundColor: branding?.theme_color || '#4f46e5'}}
-        >
-          <div className="absolute inset-0 w-full h-full bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out skew-x-12" />
-          <Plus size={20} className="group-hover:rotate-90 transition-transform" /> 
-          <span>Add New Subject</span>
+        <button onClick={() => setShowModal(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 hover:bg-black transition-all shadow-xl active:scale-95">
+          <Plus size={20} /> New Subject
         </button>
       </div>
 
-      {/* SEARCH BAR */}
+      {/* SEARCH */}
       <div className="relative w-full md:w-96">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-        <input 
-          type="text" 
-          placeholder="Search subject code or desc..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-[1.5rem] outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700 shadow-sm"
-        />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+        <input type="text" placeholder="Search by code or name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold text-slate-600 shadow-sm transition-all" />
       </div>
 
-      {/* TABLE */}
-      <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
-         <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-100">
-               <tr>
-                  <th className="p-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-8">Subject Code & Desc</th>
-                  <th className="p-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Units</th>
-                  <th className="p-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Level & Course</th>
-                  <th className="p-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Actions</th>
-               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-          {loading ? (
-            <tr><td colSpan="4" className="p-20 text-center text-slate-400 font-bold animate-pulse">Loading subjects...</td></tr>
-          ) : filteredSubjects.length === 0 ? (
-            <tr><td colSpan="4" className="p-16 text-center text-slate-400 font-bold">No subjects found.</td></tr>
-          ) : (
-            filteredSubjects.map((item) => (
-              <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="p-5 pl-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">
-                       <FileText size={18}/>
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm">{item.subject_code}</p>
-                      <p className="text-[11px] font-medium text-slate-500 mt-0.5 max-w-xs truncate" title={item.subject_description}>
-                         {item.subject_description}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-5 text-center font-black text-slate-700">{item.units || '-'}</td>
-                <td className="p-5">
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5 w-max mb-1">
-                    <Layers size={12}/> {item.grade_level_applicable}
-                  </span>
-                  <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1 uppercase">
-                     <GraduationCap size={12}/> {item.program_code || 'General / All'}
-                  </p>
-                </td>
-                <td className="p-5 text-center">
-                   <button 
-  onClick={() => handleDelete(item.id, item.subject_code)}
-  className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 rounded-lg transition-all shadow-sm">
-                      <Trash2 size={16}/>
-                   </button>
-
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-         </table>
+      {/* SUBJECT GRID (Enterprise Look) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loading ? (
+           <div className="col-span-full py-20 text-center font-black text-slate-300 uppercase animate-pulse tracking-widest">Updating Subject Catalog...</div>
+        ) : filteredSubjects.map((item) => (
+          <div key={item.id} className="bg-white rounded-[2.5rem] p-8 border-2 border-slate-50 hover:border-blue-100 transition-all group shadow-sm">
+             <div className="flex justify-between items-start mb-4">
+                <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                   item.level_category === 'College' ? 'bg-purple-100 text-purple-600' : 
+                   item.level_category === 'SHS' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                }`}>
+                   {item.level_category || 'K-10'}
+                </span>
+                <button onClick={() => handleDelete(item.id, item.subject_code)} className="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-red-500 transition-all">
+                   <Trash2 size={16}/>
+                </button>
+             </div>
+             <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase leading-none">{item.subject_code}</h3>
+             <p className="text-slate-500 font-bold text-sm mt-1">{item.subject_description}</p>
+             <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
+                <div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{item.grade_level_applicable}</p>
+                   <p className="text-[10px] font-bold text-blue-500 uppercase mt-0.5">{item.program_code || 'General'}</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-xl font-black text-slate-300 leading-none">{item.units}<span className="text-[10px]">u</span></p>
+                </div>
+             </div>
+          </div>
+        ))}
       </div>
 
-      {/* ADD MODAL */}
+      {/* SMART MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-          <form onSubmit={handleSave} className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in duration-200">
-            
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+          <form onSubmit={handleSave} className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
-                <h3 className="text-xl font-black text-slate-800">Add New Subject</h3>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Curriculum Registry</p>
+                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Register Subject</h3>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Curriculum Database</p>
               </div>
-              <button type="button" onClick={handleCloseModal} className="p-2 bg-white border border-slate-200 text-slate-400 rounded-xl hover:text-red-500"><X size={20}/></button>
+              <button type="button" onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><X size={24}/></button>
             </div>
 
-            <div className="p-8 overflow-y-auto space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
-                  {/* Subject Code */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Subject Code *</label>
-                    <input required type="text" placeholder="e.g. MATH101" value={formData.subject_code} onChange={e=>setFormData({...formData, subject_code: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700" />
-                  </div>
+            <div className="p-10 overflow-y-auto space-y-6">
+              {/* LEVEL CATEGORY SELECTOR */}
+              <div className="space-y-3">
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Academic Category</label>
+                 <div className="grid grid-cols-3 gap-3">
+                    {Object.keys(LEVEL_CONFIG).map(cat => (
+                       <button key={cat} type="button" onClick={() => handleLevelCategoryChange(cat)}
+                          className={`py-4 rounded-2xl font-black text-xs uppercase tracking-widest border-2 transition-all ${formData.level_category === cat ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-lg scale-105' : 'bg-white border-slate-100 text-slate-300'}`}>
+                          {cat}
+                       </button>
+                    ))}
+                 </div>
+              </div>
 
-                  {/* Units */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Units (Credit)</label>
-                    <input type="number" min="0" value={formData.units} onChange={e=>setFormData({...formData, units: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700" />
-                  </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Subject Code *</label>
+                  <input required type="text" placeholder="MATH101" value={formData.subject_code} onChange={e=>setFormData({...formData, subject_code: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Units (Credit)</label>
+                  <input type="number" value={formData.units} onChange={e=>setFormData({...formData, units: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold" />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Full Description *</label>
+                  <input required type="text" placeholder="e.g. Fundamentals of Mathematics" value={formData.subject_description} onChange={e=>setFormData({...formData, subject_description: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold" />
+                </div>
 
-                  {/* Description */}
-                  <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Description / Title *</label>
-                    <input required type="text" placeholder="e.g. General Mathematics" value={formData.subject_description} onChange={e=>setFormData({...formData, subject_description: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700" />
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Grade / Year Level</label>
+                  <select value={formData.grade_level_applicable} onChange={e=>setFormData({...formData, grade_level_applicable: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-blue-500">
+                    {LEVEL_CONFIG[formData.level_category].levels.map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+                  </select>
+                </div>
 
-                  {/* Department Toggle */}
-                  <div className="space-y-1.5 md:col-span-2 border-t border-slate-100 pt-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Educational Level</label>
-                    <div className="flex gap-4">
-                      {['K-12', 'SHS / College'].map(dept => (
-                        <label key={dept} className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-700">
-                          <input 
-                            type="radio" 
-                            name="dept" 
-                            checked={formData.department === dept} 
-                            onChange={() => setFormData({...formData, department: dept, program_id: ''})}
-                            className="w-4 h-4 text-indigo-600"
-                          /> {dept}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Grade Level */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Grade / Year Level</label>
-                    <input required type="text" placeholder="e.g. Grade 10, 1st Year" value={formData.grade_level_applicable} onChange={e=>setFormData({...formData, grade_level_applicable: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700" />
-                  </div>
-
-                  {/* Program / Course (Disabled kung K-12) */}
-                  <div className={`space-y-1.5 ${formData.department === 'K-12' ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Program / Course</label>
-                    <select 
-                      value={formData.program_id} 
-                      onChange={e=>setFormData({...formData, program_id: e.target.value})} 
-                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-indigo-500 transition-all text-sm font-bold text-slate-700"
-                    >
-                      <option value="">-- Select Program --</option>
-                      {programs.map(p => <option key={p.id} value={p.id}>{p.program_code} ({p.department})</option>)}
-                    </select>
-                  </div>
-
-               </div>
+                {LEVEL_CONFIG[formData.level_category].needsProgram && (
+                   <div className="space-y-1.5 animate-in slide-in-from-top-2">
+                     <label className="text-[10px] font-black text-blue-500 uppercase ml-1">Program / Course Link</label>
+                     <select required value={formData.program_id} onChange={e=>setFormData({...formData, program_id: e.target.value})} className="w-full p-4 bg-blue-50 border-2 border-blue-100 text-blue-900 rounded-2xl font-bold outline-none">
+                       <option value="">-- Choose Program --</option>
+                       {programs.filter(p => p.department === (formData.level_category === 'SHS' ? 'SHS' : 'College')).map(p => (
+                          <option key={p.id} value={p.id}>{p.program_code}</option>
+                       ))}
+                     </select>
+                   </div>
+                )}
+              </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-[2.5rem]">
-              <button type="button" onClick={handleCloseModal} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200">Cancel</button>
-              <button type="submit" disabled={saveLoading} className="px-8 py-3 rounded-xl font-black text-white shadow-lg active:scale-95 transition-all flex items-center gap-2" style={{backgroundColor: branding?.theme_color || '#4f46e5'}}>
-                {saveLoading ? <RefreshCw className="animate-spin" size={18}/> : <><CheckCircle size={18}/> Save Subject</>}
+            <div className="p-8 border-t border-slate-100 bg-slate-50 flex justify-end gap-4">
+              <button type="button" onClick={() => setShowModal(false)} className="px-8 py-4 rounded-2xl font-black text-slate-400 uppercase text-xs tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
+              <button type="submit" disabled={saveLoading} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all flex items-center gap-2">
+                {saveLoading ? <RefreshCw className="animate-spin" size={18}/> : <><CheckCircle size={18}/> Register Subject</>}
               </button>
             </div>
           </form>

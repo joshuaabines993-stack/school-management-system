@@ -34,6 +34,7 @@ registrar: [
       { icon: <ClipboardList size={20} />, label: 'Enrollment Module', path: '/registrar/enrollment' },
       { icon: <FileText size={20} />, label: 'Student Requests', path: '/registrar/requests' }, 
       { icon: <Award size={20} />, label: 'Scholarship Applications', path: '/registrar/scholarships' },
+      { icon: <Layers size={20} />, label: 'Section Management', path: '/registrar/sections' },
     ],
     teacher: [
       { icon: <LayoutDashboard size={20} />, label: 'LMS Dashboard', path: '/teacher/dashboard' },

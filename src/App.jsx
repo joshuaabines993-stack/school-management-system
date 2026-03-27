@@ -16,11 +16,12 @@ import ResetPassword from './pages/auth/ResetPassword';
 import RegistrarDashboard from './pages/registrar/RegistrarDashboard'; // Placeholder/Gagawin pa
 import StudentManagement from './pages/registrar/StudentManagement'; // Dito ang Profile & Print Profile
 import EnrollmentModule from './pages/registrar/EnrollmentModule';   // Dito ang Fees, Pending/Enrolled, Print COR
-import TeacherAssignments from './pages/registrar/TeacherAssignments'; // Dito ang pag-assign ng Teacher sa Subjects
+import TeacherAssignments from './pages/registrar/ClassAssignments'; // Dito ang pag-assign ng Teacher sa Subjects
 import StudentRequests from './pages/registrar/StudentRequests'; // <--- Ito yung bagong page
 import AcademicPrograms from './pages/registrar/AcademicPrograms'; // <--- BAGONG DAGDAG
 import ScholarshipApplications from './pages/registrar/ScholarshipApplications';
 import RegistrarSubjects from './pages/registrar/RegistrarSubjects';
+import SectionManagement from './pages/registrar/SectionManagement'; // <--- BAGONG DAGDAG
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentAccounting from './pages/student/StudentAccounting';
@@ -184,6 +185,8 @@ function App() {
 
             {/* FIX: Inalis ang "/registrar/" para maging relative path tulad ng iba */}
             <Route path="subjects" element={<RegistrarSubjects />} />
+
+            <Route path="sections" element={<SectionManagement />} />
             
           </Route>
 
