@@ -323,9 +323,11 @@ const EnrollmentModule = () => {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm focus:border-blue-500"
                             >
                                 <option value="">-- Select Available Section --</option>
-                                {sections.map(sec => (
-                                    <option key={sec.id} value={sec.id}>{sec.section_name}</option>
-                                ))}
+                                  {sections.map(sec => (
+                                      <option key={sec.id} value={sec.id}>
+                                          {sec.section_name} ({sec.grade_level})  {/* Idinagdag natin yung grade_level dito para makita kung 1st Year o 2nd Year */}
+                                      </option>
+                                  ))}
                             </select>
                         </div>
                     ) : (
