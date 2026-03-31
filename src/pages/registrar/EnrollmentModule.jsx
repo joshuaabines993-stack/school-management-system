@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { 
   ClipboardList, CheckCircle, Clock, Printer, X, Search, 
-  CreditCard, BookOpen, CheckSquare, Square, AlertCircle, Layers
+  CreditCard, BookOpen, CheckSquare, Square, AlertCircle, Layers, User
 } from 'lucide-react'; 
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,15 +19,18 @@ const EnrollmentModule = () => {
   const [enrollModal, setEnrollModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [corModal, setCorModal] = useState(false);
-
+  const [showSubjectPicker, setShowSubjectPicker] = useState(false);
+  const [availableClasses, setAvailableClasses] = useState([]);
   // ARCHITECT FIX: Idinagdag ang student_status at section_id
-  const [enrollForm, setEnrollForm] = useState({
+const [enrollForm, setEnrollForm] = useState({
     school_year: '2026-2027',
     grade_level: '',
     student_status: 'Regular', 
     section_id: '',
-    selected_fees: [] 
+    selected_fees: [],
+    selected_classes: [] // <--- IDAGDAG ITO
   });
+
 
   useEffect(() => {
     fetchData();
@@ -45,6 +48,32 @@ const EnrollmentModule = () => {
         console.error("Error fetching data:", error);
         setStudents([]); 
       } finally { setLoading(false); }
+  };
+
+// 1. Update fetchAvailableClasses para mag-pasa ng programId
+const fetchAvailableClasses = async (programId, gradeLevel) => {
+      try {
+          const res = await axios.get(`${API_BASE_URL}/registrar/get_available_classes.php`, {
+              params: { program_id: programId, grade_level: gradeLevel } // 🛑 Ipapasa natin pareho
+          });
+          if (res.data.success) setAvailableClasses(res.data.classes);
+      } catch (error) { console.error(error); }
+  };
+
+  // Patawag nito pagbukas ng Subject Picker
+const handleOpenSubjectPicker = () => {
+      // 🛑 Ipinasa natin pareho ang program_id at grade_level
+      fetchAvailableClasses(selectedStudent.program_id, selectedStudent.grade_level);
+      setShowSubjectPicker(true);
+  };
+
+  const toggleClassSelection = (classId) => {
+      setEnrollForm(prev => ({
+          ...prev,
+          selected_classes: prev.selected_classes.includes(classId)
+              ? prev.selected_classes.filter(id => id !== classId)
+              : [...prev.selected_classes, classId]
+      }));
   };
 
   const fetchFeesCatalog = async () => {
@@ -91,7 +120,8 @@ const EnrollmentModule = () => {
         grade_level: student.grade_level,
         student_status: 'Regular', // Default sa Regular
         section_id: '',
-        selected_fees: matchedFees 
+        selected_fees: matchedFees,
+        selected_classes: []
     });
     setEnrollModal(true);
   };
@@ -123,7 +153,8 @@ const EnrollmentModule = () => {
         school_year: enrollForm.school_year,
         student_status: enrollForm.student_status,
         section_id: enrollForm.section_id,
-        selected_fees: enrollForm.selected_fees
+        selected_fees: enrollForm.selected_fees,
+        selected_classes: enrollForm.selected_classes 
       };
       
       const response = await axios.post(`${API_BASE_URL}/registrar/process_enrollment.php`, payload);
@@ -333,10 +364,10 @@ const EnrollmentModule = () => {
                     ) : (
                         <div className="space-y-2 md:col-span-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">Custom Subjects</label>
-                            <button type="button" className="w-full p-4 border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all">
-                                + Select Individual Subjects
-                            </button>
-                            <p className="text-[10px] text-amber-500 font-bold italic mt-1">* Subject picker will open here (Coming Soon)</p>
+                          <button type="button" onClick={handleOpenSubjectPicker} className="w-full p-4 border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all flex justify-between items-center">
+                                  <span>+ Select Individual Subjects</span>
+                                  <span className="bg-blue-100 px-3 py-1 rounded-full text-[10px]">{enrollForm.selected_classes?.length || 0} Selected</span>
+                              </button>
                         </div>
                     )}
                 </div>
@@ -470,6 +501,54 @@ const EnrollmentModule = () => {
     </div>
   </div>
 )}
+
+{/* SUBJECT PICKER MODAL FOR IRREGULARS */}
+      {showSubjectPicker && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Select Subjects</h3>
+                <p className="text-xs text-slate-500 font-bold uppercase mt-1">Irregular Load Configuration</p>
+              </div>
+              <button onClick={() => setShowSubjectPicker(false)} className="p-2 bg-white text-slate-400 rounded-xl hover:text-red-500 shadow-sm"><X size={20}/></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+                <div className="grid grid-cols-1 gap-3">
+                    {availableClasses.map(cls => {
+                        const isSelected = enrollForm.selected_classes.includes(cls.class_assignment_id);
+                        return (
+                            <div key={cls.class_assignment_id} onClick={() => toggleClassSelection(cls.class_assignment_id)} className={`p-4 bg-white rounded-2xl border flex items-center gap-4 cursor-pointer transition-all shadow-sm ${isSelected ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-blue-300'}`}>
+                                <div className={`${isSelected ? 'text-blue-600' : 'text-slate-300'}`}>
+                                    {isSelected ? <CheckSquare size={24} /> : <Square size={24} />}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-start">
+                                        <h4 className="font-black text-slate-800 text-sm">{cls.subject_code} - {cls.subject_description}</h4>
+                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{cls.units} Units</span>
+                                    </div>
+                                    <div className="flex gap-4 mt-2 text-[10px] font-bold text-slate-500 uppercase">
+                                        <p className="flex items-center gap-1"><Clock size={12}/> {cls.schedule}</p>
+                                        <p className="flex items-center gap-1"><User size={12}/> {cls.first_name} {cls.last_name}</p>
+                                        <p className="flex items-center gap-1"><Layers size={12}/> {cls.section_name}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
+              <p className="text-sm font-black text-slate-600">Total Selected: <span className="text-blue-600">{enrollForm.selected_classes.length} Classes</span></p>
+              <button onClick={() => setShowSubjectPicker(false)} className="px-8 py-3 rounded-xl font-black text-white shadow-lg bg-slate-800 hover:bg-slate-700 transition-all flex items-center gap-2">
+                 Done Selecting
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

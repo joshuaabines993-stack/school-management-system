@@ -170,10 +170,13 @@ const handleCloseModal = () => {
 
       // ARCHITECT: Ginamit natin yung strict filter natin dito!
       const eligibleSubjects = subjects.filter(sub => {
-          const subjectGrade = String(sub.grade_level_applicable || "").trim().toLowerCase();
-          if (!selectedSection.program_id) return sectionGrade === subjectGrade;
-          return parseInt(sub.program_id) === parseInt(selectedSection.program_id) && sectionGrade === subjectGrade;
-      });
+            const subjectGrade = String(sub.grade_level_applicable || "").trim().toLowerCase();
+            if (!selectedSection.program_id) return sectionGrade === subjectGrade;
+            
+            // 🛑 ARCHITECT FIX: Idinagdag din natin yung check dito para sa Bulk Assign
+            return (parseInt(sub.program_id) === parseInt(selectedSection.program_id) || sub.program_id === null || sub.program_id === "") && 
+                  sectionGrade === subjectGrade;
+        });
 
       // Gagawa tayo ng "Draft List" para sa bawat subject
       const newDrafts = eligibleSubjects.map(sub => ({
@@ -415,11 +418,12 @@ return (
                           const subjectGrade = String(sub.grade_level_applicable || "").trim().toLowerCase();
 
                           if (!selectedSection.program_id) {
-                              return sectionGrade === subjectGrade;
-                          } else {
-                              return parseInt(sub.program_id) === parseInt(selectedSection.program_id) && 
-                                     sectionGrade === subjectGrade;
-                          }
+                                return sectionGrade === subjectGrade;
+                            } else {
+                                // 🛑 ARCHITECT FIX: Idinagdag natin yung check kung null o empty ang program_id (GE Subjects)
+                                return (parseInt(sub.program_id) === parseInt(selectedSection.program_id) || sub.program_id === null || sub.program_id === "") && 
+                                      sectionGrade === subjectGrade;
+                            }
                       }).map(s => (
                           <option key={s.id} value={s.id}>
                               {s.subject_code} - {s.subject_description || s.name}

@@ -22,15 +22,20 @@ const AdminLayout = () => {
       { icon: <Users size={20} />, label: 'User Management', path: '/admin/users' },
       { icon: <Settings size={20} />, label: 'Branding Engine', path: '/admin/branding' },
     ],
-registrar: [
+    registrar: [
       { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/registrar/dashboard' },
       { icon: <UserCircle size={20} />, label: 'Student Masterlist', path: '/registrar/students' },
-      // Workflow Group: Academics
+      
+      // Separator 1
+      { type: 'header', label: 'Academics' }, 
+      
       { icon: <Library size={20} />, label: 'Academic Programs', path: '/registrar/programs' }, 
-       
       { icon: <BookOpen size={20} />, label: 'Subject Management', path: '/registrar/subjects'},
       { icon: <GraduationCap size={20} />, label: 'Class Assignments', path: '/registrar/assignments' },
-      // Workflow Group: Enrollment & Requests
+      
+      // Separator 2
+      { type: 'header', label: 'Enrollment & Requests' },
+
       { icon: <ClipboardList size={20} />, label: 'Enrollment Module', path: '/registrar/enrollment' },
       { icon: <FileText size={20} />, label: 'Student Requests', path: '/registrar/requests' }, 
       { icon: <Award size={20} />, label: 'Scholarship Applications', path: '/registrar/scholarships' },
@@ -95,29 +100,40 @@ registrar: [
         </div>
         
         {/* NAVIGATION LINKS */}
-        {/* FIX: overflow-y-auto dito para kung marami ang menu (tulad sa Registrar/Cashier), sidebar lang ang mag-scroll */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Main Menu</p>
-          {currentMenu.map((item, index) => {
-            const isActive = location.pathname === item.path;
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {/* Tinanggal natin yung static na "Main Menu" para dynamic na lahat */}
+                {currentMenu.map((item, index) => {
+                  // CONDITION: Kung ang item ay isang header/separator
+                  if (item.type === 'header') {
+                    return (
+                      <div key={`header-${index}`} className="pt-6 pb-2 px-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          {item.label}
+                        </p>
+                        <div className="h-[1px] bg-slate-800/50 mt-1 w-full" />
+                      </div>
+                    );
+                  }
 
-            return (
-              <Link 
-                key={index} 
-                to={item.path} 
-                onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 group
-                  ${isActive ? 'text-white shadow-lg' : 'hover:bg-slate-800 hover:text-white'}`}
-                style={isActive ? { backgroundColor: branding.theme_color || '#2563eb' } : {}}
-              >
-                <span className={`${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}>
-                  {item.icon}
-                </span>
-                <span className="font-medium text-sm">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+                  // TYPICAL MENU ITEM
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link 
+                      key={index} 
+                      to={item.path} 
+                      onClick={() => setIsSidebarOpen(false)}
+                      className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 group
+                        ${isActive ? 'text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                      style={isActive ? { backgroundColor: branding.theme_color || '#2563eb' } : {}}
+                    >
+                      <span className={`${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}>
+                        {item.icon}
+                      </span>
+                      <span className="font-medium text-sm">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
 
         {/* USER INFO & LOGOUT */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/50 shrink-0">

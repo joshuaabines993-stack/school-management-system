@@ -210,12 +210,26 @@ const handleLevelCategoryChange = (cat) => {
                 {LEVEL_CONFIG[formData.level_category].needsProgram && (
                    <div className="space-y-1.5 animate-in slide-in-from-top-2">
                      <label className="text-[10px] font-black text-blue-500 uppercase ml-1">Program / Course Link</label>
-                     <select required value={formData.program_id} onChange={e=>setFormData({...formData, program_id: e.target.value})} className="w-full p-4 bg-blue-50 border-2 border-blue-100 text-blue-900 rounded-2xl font-bold outline-none">
-                       <option value="">-- Choose Program --</option>
-                       {programs.filter(p => p.department === (formData.level_category === 'SHS' ? 'SHS' : 'College')).map(p => (
-                          <option key={p.id} value={p.id}>{p.program_code}</option>
-                       ))}
-                     </select>
+<select 
+  required 
+  value={formData.program_id} 
+  onChange={e => setFormData({...formData, program_id: e.target.value})} 
+  className="w-full p-4 bg-blue-50 border-2 border-blue-100 text-blue-900 rounded-2xl font-bold outline-none"
+>
+  <option value="" disabled>-- Choose Program / Strand --</option>
+  
+  {/* 🛑 ARCHITECT FIX: Dynamic Label depende kung SHS o College */}
+  <option value="GE">
+    {formData.level_category === 'SHS' 
+      ? 'Core Subject (Applicable to All Strands)' 
+      : 'General Education (Applicable to All Courses)'}
+  </option>
+  
+  {/* Listahan ng specific courses o strands */}
+  {programs.filter(p => p.department === (formData.level_category === 'SHS' ? 'SHS' : 'College')).map(p => (
+     <option key={p.id} value={p.id}>{p.program_code}</option>
+  ))}
+</select>
                    </div>
                 )}
               </div>
