@@ -89,7 +89,7 @@ const ScholarshipApplications = () => {
 
       for (let i = 0; i < imageDocs.length; i++) {
         // DUMADAAN SA PHP PROXY PARA WALANG CORS ERROR
-        const fileUrl = `${API_BASE_URL}/read_image.php?file=${imageDocs[i]}`;
+        const fileUrl = `${API_BASE_URL}/registrar/read_image.php?file=${imageDocs[i]}`;
         
         const { data: { text } } = await Tesseract.recognize(
           fileUrl,
@@ -109,7 +109,7 @@ const ScholarshipApplications = () => {
       const validKeywords = [
         'republic of the philippines', 'certif', 'completion', 'indigency', 
         'report card', 'form 138', 'gwa', 'grade', 'esc', 'voucher', 
-        'academic', 'scholarship', 'barangay', 'average', 'mike'
+        'academic', 'scholarship', 'barangay', 'average', 'mike', 'certificate', 'enrollment', 'status', 'good moral', 'residence', 'income'
       ];
 
       const isMatch = validKeywords.some(kw => combinedText.includes(kw));
@@ -136,7 +136,7 @@ const ScholarshipApplications = () => {
 
     setEvalLoading(true);
     try {
-      const res = await axios.post(`${API_BASE_URL}/evaluate_scholarship.php`, {
+      const res = await axios.post(`${API_BASE_URL}/registrar/evaluate_scholarship.php`, {
         id: selectedApp.id,
         status: actionToConfirm
       });
