@@ -4,15 +4,15 @@ import {
   LayoutDashboard, Users, Settings, LogOut, Menu, X, 
   BookOpen, CreditCard, UserCircle, Search, Receipt, 
   History, ClipboardList, GraduationCap, Layers, FileText,
-  Library, Award
+  Library, Award, ChevronLeft, ChevronRight 
 } from 'lucide-react'; 
 import { useAuth } from '../context/AuthContext';
 import UserProfileModal from '../components/admin/UserProfileModal'; 
 
-
 const AdminLayout = () => {
   const { logout, user, branding, API_BASE_URL } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  const [isCollapsed, setIsCollapsed] = useState(false); 
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -25,17 +25,11 @@ const AdminLayout = () => {
     registrar: [
       { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/registrar/dashboard' },
       { icon: <UserCircle size={20} />, label: 'Student Masterlist', path: '/registrar/students' },
-      
-      // Separator 1
       { type: 'header', label: 'Academics' }, 
-      
       { icon: <Library size={20} />, label: 'Academic Programs', path: '/registrar/programs' }, 
       { icon: <BookOpen size={20} />, label: 'Subject Management', path: '/registrar/subjects'},
       { icon: <GraduationCap size={20} />, label: 'Class Assignments', path: '/registrar/assignments' },
-      
-      // Separator 2
       { type: 'header', label: 'Enrollment & Requests' },
-
       { icon: <ClipboardList size={20} />, label: 'Enrollment Module', path: '/registrar/enrollment' },
       { icon: <FileText size={20} />, label: 'Student Requests', path: '/registrar/requests' }, 
       { icon: <Award size={20} />, label: 'Scholarship Applications', path: '/registrar/scholarships' },
@@ -59,7 +53,6 @@ const AdminLayout = () => {
   const currentMenu = menuConfig[user?.role] || [];
 
   return (
-    // FIX: Nilagyan ng h-screen at overflow-hidden para ma-lock ang view
     <div className="flex h-screen bg-slate-50 relative font-sans overflow-hidden">
       
       {/* 1. MOBILE OVERLAY */}
@@ -70,116 +63,142 @@ const AdminLayout = () => {
         />
       )}
 
-      {/* 2. SIDEBAR */}
-      {/* FIX: Nilagyan ng lg:h-full at lg:sticky */}
+      {/* 2. FLOATING SIDEBAR (COLLAPSIBLE) */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col transition-transform duration-300 transform
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-        lg:translate-x-0 lg:sticky lg:top-0 lg:h-full shadow-2xl
+        fixed z-50 bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out shadow-2xl
+        inset-y-0 left-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+        lg:translate-x-0 lg:static lg:h-[calc(100vh-2rem)] lg:my-4 lg:ml-4 lg:rounded-[2rem]
+        /* 🛑 FIX: Sa mobile (w-64) automatic malaki. Sa Desktop (lg) lang gagana yung pagliit! */
+        w-64 ${isCollapsed ? 'lg:w-[5.5rem]' : 'lg:w-64'} 
       `}>
+        
         {/* SIDEBAR HEADER */}
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center shrink-0">
-          <div className="flex items-center space-x-3">
+        <div className={`h-20 px-4 border-b border-slate-800 flex items-center shrink-0 transition-all justify-between ${isCollapsed ? 'lg:justify-center' : 'lg:justify-between'}`}>
+          <div className="flex items-center gap-3 overflow-hidden">
             {branding.school_logo ? (
-              <img src={`${API_BASE_URL}/uploads/branding/${branding.school_logo}`} alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
+              <img src={`${API_BASE_URL}/uploads/branding/${branding.school_logo}`} alt="Logo" className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-lg" />
             ) : (
               <div 
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black shrink-0 shadow-lg"
                 style={{ backgroundColor: branding.theme_color || '#2563eb' }}
               >
                 {branding.school_name?.charAt(0)}
               </div>
             )}
-            <span className="text-lg font-bold text-white tracking-tight truncate max-w-[140px]">
+            
+            {/* 🛑 FIX: Automatic lalabas yung text sa mobile kahit naka-collapse ang desktop */}
+            <span className={`text-lg font-black text-white tracking-tight truncate transition-all duration-300 w-32 opacity-100 ${isCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : ''}`}>
               {branding.school_name}
             </span>
           </div>
-          <button className="lg:hidden text-slate-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+          
+          <button className="lg:hidden text-slate-400 hover:text-white p-2 shrink-0" onClick={() => setIsSidebarOpen(false)}>
             <X size={24} />
           </button>
         </div>
         
         {/* NAVIGATION LINKS */}
-              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                {/* Tinanggal natin yung static na "Main Menu" para dynamic na lahat */}
-                {currentMenu.map((item, index) => {
-                  // CONDITION: Kung ang item ay isang header/separator
-                  if (item.type === 'header') {
-                    return (
-                      <div key={`header-${index}`} className="pt-6 pb-2 px-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                          {item.label}
-                        </p>
-                        <div className="h-[1px] bg-slate-800/50 mt-1 w-full" />
-                      </div>
-                    );
-                  }
+        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto overflow-x-hidden scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+          {currentMenu.map((item, index) => {
+            if (item.type === 'header') {
+              return (
+                <div key={`header-${index}`} className={`pt-6 pb-2 transition-all duration-300 px-3 ${isCollapsed ? 'lg:text-center lg:px-0' : ''}`}>
+                   {/* Dot para sa Desktop Collapsed */}
+                   <div className={`h-1.5 w-1.5 bg-slate-700 rounded-full mx-auto hidden ${isCollapsed ? 'lg:block' : ''}`} /> 
+                   
+                   {/* Text para sa Mobile o Desktop Expanded */}
+                   <div className={`block ${isCollapsed ? 'lg:hidden' : ''}`}>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{item.label}</p>
+                      <div className="h-[1px] bg-slate-800 mt-2 w-full" />
+                   </div>
+                </div>
+              );
+            }
 
-                  // TYPICAL MENU ITEM
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link 
-                      key={index} 
-                      to={item.path} 
-                      onClick={() => setIsSidebarOpen(false)}
-                      className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 group
-                        ${isActive ? 'text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                      style={isActive ? { backgroundColor: branding.theme_color || '#2563eb' } : {}}
-                    >
-                      <span className={`${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}>
-                        {item.icon}
-                      </span>
-                      <span className="font-medium text-sm">{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
+            const isActive = location.pathname === item.path;
+            return (
+              <Link 
+                key={index} 
+                to={item.path} 
+                onClick={() => setIsSidebarOpen(false)}
+                title={isCollapsed ? item.label : ""}
+                className={`flex items-center p-3 rounded-2xl transition-all duration-200 group relative gap-4
+                  ${isActive ? 'text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+                  ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}
+                `}
+                style={isActive ? { backgroundColor: branding.theme_color || '#2563eb' } : {}}
+              >
+                <span className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'} shrink-0`}>
+                  {item.icon}
+                </span>
+                
+                {/* 🛑 FIX: Automatic lalabas yung text sa mobile kahit naka-collapse ang desktop */}
+                <span className={`font-bold text-sm transition-all duration-300 whitespace-nowrap overflow-hidden w-auto opacity-100 ${isCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : ''}`}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
 
-        {/* USER INFO & LOGOUT */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
+        {/* TOGGLE EXPAND/COLLAPSE BUTTON */}
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="hidden lg:flex absolute -right-3.5 top-20 w-7 h-7 bg-white text-slate-800 rounded-full items-center justify-center shadow-lg border border-slate-200 hover:scale-110 transition-transform z-50"
+        >
+          {isCollapsed ? <ChevronRight size={16} strokeWidth={3} /> : <ChevronLeft size={16} strokeWidth={3} />}
+        </button>
+
+        {/* USER INFO & LOGOUT FOOTER */}
+        <div className="p-4 border-t border-slate-800 bg-slate-950/50 shrink-0 lg:rounded-b-[2rem]">
           <div 
-            className="flex items-center space-x-3 mb-4 px-2 cursor-pointer hover:opacity-80 transition-opacity"
+            className={`flex items-center mb-4 cursor-pointer hover:opacity-80 transition-all duration-300 w-full gap-3 px-2 ${isCollapsed ? 'lg:justify-center lg:px-0' : ''}`}
             onClick={() => setIsProfileOpen(true)}
+            title={isCollapsed ? "View Profile" : ""}
           >
              {user?.profile_image ? (
-                <img src={`${API_BASE_URL}/uploads/profiles/${user.profile_image}`} className="w-8 h-8 rounded-full object-cover border border-slate-600" alt="Avatar"/>
+                <img src={`${API_BASE_URL}/uploads/profiles/${user.profile_image}`} className="w-10 h-10 rounded-full object-cover border-2 border-slate-700 shrink-0" alt="Avatar"/>
              ) : (
                 <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold border border-slate-600"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-black border-2 border-slate-700 shrink-0"
                   style={{ color: branding.theme_color || '#2563eb' }}
                 >
                   {user?.full_name?.charAt(0) || user?.role?.charAt(0)}
                 </div>
              )}
-             <div className="overflow-hidden">
-                <p className="text-xs font-bold text-white truncate">{user?.full_name}</p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-tighter">
-                  {user?.role} • Edit Profile
+             
+             <div className={`overflow-hidden transition-all duration-300 flex-1 w-auto opacity-100 ${isCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : ''}`}>
+                <p className="text-sm font-black text-white truncate">{user?.full_name}</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                  {user?.role}
                 </p>
              </div>
           </div>
+
           <button 
             onClick={logout} 
-            className="flex items-center space-x-3 p-3 w-full rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all duration-200"
+            title={isCollapsed ? "Sign Out" : ""}
+            className={`flex items-center p-3 rounded-2xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all duration-200 group w-full gap-3 ${isCollapsed ? 'lg:justify-center' : ''}`}
           >
-            <LogOut size={18} />
-            <span className="text-sm font-semibold">Sign Out</span>
+            <LogOut size={20} className="shrink-0 group-hover:scale-110 transition-transform" />
+            <span className={`text-sm font-bold tracking-wide transition-all duration-300 whitespace-nowrap overflow-hidden w-auto opacity-100 ${isCollapsed ? 'lg:w-0 lg:opacity-0 lg:hidden' : ''}`}>
+              Sign Out
+            </span>
           </button>
         </div>
       </aside>
 
-      {/* 3. MAIN CONTENT AREA */}
-      {/* FIX: Idinagdag ang h-full at overflow-y-auto */}
+      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
+        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-30 shrink-0 shadow-sm">
           <div className="flex items-center space-x-4">
             <button 
-              className="p-2 rounded-xl bg-slate-50 text-slate-600 lg:hidden hover:bg-slate-100"
+              className="p-2 rounded-xl bg-slate-50 text-slate-600 lg:hidden hover:bg-slate-100 border border-slate-200"
               onClick={() => setIsSidebarOpen(true)}
             >
               <Menu size={20} />
             </button>
-            <h2 className="text-slate-800 font-bold text-sm lg:text-base capitalize">
+            <h2 className="text-slate-800 font-black text-lg lg:text-xl capitalize tracking-tight">
                {location.pathname.split('/').pop()?.replace('-', ' ')}
             </h2>
           </div>
@@ -189,16 +208,16 @@ const AdminLayout = () => {
             onClick={() => setIsProfileOpen(true)}
           >
             <div className="hidden sm:block text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{user?.full_name}</p>
-                <p className="text-[10px] font-medium uppercase mt-1 italic" style={{ color: branding.theme_color || '#2563eb' }}>
+                <p className="text-sm font-black text-slate-800 leading-none">{user?.full_name}</p>
+                <p className="text-[10px] font-bold uppercase mt-1 tracking-widest" style={{ color: branding.theme_color || '#2563eb' }}>
                   System Verified
                 </p>
             </div>
             {user?.profile_image ? (
-               <img src={`${API_BASE_URL}/uploads/profiles/${user.profile_image}`} className="w-10 h-10 rounded-xl object-cover shadow-md" alt="Avatar"/>
+               <img src={`${API_BASE_URL}/uploads/profiles/${user.profile_image}`} className="w-12 h-12 rounded-[1rem] object-cover shadow-sm border-2 border-white ring-1 ring-slate-100" alt="Avatar"/>
             ) : (
               <div 
-                className="w-10 h-10 text-white rounded-xl flex items-center justify-center font-bold shadow-md"
+                className="w-12 h-12 text-white rounded-[1rem] flex items-center justify-center font-black shadow-sm"
                 style={{ backgroundColor: branding.theme_color || '#2563eb' }}
               >
                 {user?.full_name?.charAt(0)}
@@ -208,7 +227,7 @@ const AdminLayout = () => {
         </header>
 
         {/* PAGE CONTENT */}
-        <div className="p-4 lg:p-8">
+        <div className="p-6 lg:p-10">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>
@@ -222,7 +241,6 @@ const AdminLayout = () => {
         branding={branding} 
         logout={logout} 
       />
-
     </div>
   );
 };
