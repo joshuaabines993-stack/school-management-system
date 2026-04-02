@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { User, Mail, Phone, Briefcase, BookOpen, Clock, Award, Edit } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, BookOpen, Clock, Award, Edit, Bookmark } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
@@ -8,19 +8,18 @@ import { LoadingSpinner, PageHeader, InfoItem, Card, CardHeader, EmptyState } fr
 import { SHARED_STYLES, ANIMATION_DELAYS } from '../../utils/teacherConstants';
 
 const TeacherProfile = () => {
-  const { user, API_BASE_URL } = useAuth();
+  const { user, API_BASE_URL, branding } = useAuth(); // Kinuha ang branding
   const [teacher, setTeacher] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isServerOffline, setIsServerOffline] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const navigate = useNavigate();
 
-  /**
-   * Fetch teacher profile data with caching and fallback
-   */
+  // Dynamic branding color
+  const themeColor = branding?.theme_color || '#6366f1';
+
   const fetchTeacherData = useCallback(async (showLoading = true) => {
     if (!user?.id) return;
-
     if (showLoading) setIsLoading(true);
     setIsRetrying(true);
 
@@ -38,7 +37,6 @@ const TeacherProfile = () => {
       if (response.data.status === 'success') {
         const dbData = response.data.data;
         const nameParts = dbData.full_name?.split(' ') || user?.full_name?.split(' ') || ['Teacher', ''];
-
         setTeacher({
           ...dbData,
           id: dbData.id || user?.id,
@@ -55,7 +53,6 @@ const TeacherProfile = () => {
     } catch (error) {
       console.error('Profile fetch error:', error);
       setIsServerOffline(true);
-
       const nameParts = user?.full_name?.split(' ') || ['Teacher', ''];
       setTeacher({
         id: user?.id,
@@ -75,26 +72,37 @@ const TeacherProfile = () => {
     if (user?.id) fetchTeacherData(true);
   }, [user?.id, fetchTeacherData]);
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading profile data..." />;
-  }
-
+  if (isLoading) return <LoadingSpinner message="Inihahanda ang iyong profile..." />;
   if (!teacher) return null;
 
   return (
-    <div className="w-full flex flex-col bg-transparent pb-10 lg:pb-6 relative">
-      <style>{SHARED_STYLES}</style>
+    /* SCROLLABLE CONTAINER CONFIGURATION */
+    <div className="w-full h-full overflow-y-auto custom-scroll pr-2 pb-10">
+      {/* BRANDING ENGINE FOR SCROLLBAR & STYLES */}
+      <style>{`
+        ${SHARED_STYLES}
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { 
+          background-color: ${themeColor}; 
+          border-radius: 20px; 
+          border: 2px solid transparent; 
+          background-clip: content-box; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: ${themeColor}; opacity: 0.8; }
+      `}</style>
 
-      <div className="max-w-7xl mx-auto w-full flex flex-col gap-4">
+      <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
         {/* HEADER & OFFLINE BANNER */}
         <div className="flex flex-col gap-3 shrink-0 animate-stagger" style={{ animationDelay: ANIMATION_DELAYS.header }}>
           <PageHeader
             title="Your Profile"
-            subtitle="View and manage your professional information."
+            subtitle="View and manage your professional information and teaching credentials."
             action={
               <Link
                 to="/teacher/profile/edit"
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold shadow-sm shadow-indigo-500/20 transition-all w-full sm:w-auto justify-center"
+                className="flex items-center gap-2 px-6 py-2.5 text-white rounded-xl text-[11px] font-black shadow-lg transition-all hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                style={{ backgroundColor: themeColor, shadowColor: `${themeColor}40` }}
               >
                 <Edit size={14} /> Edit Profile
               </Link>
@@ -111,67 +119,57 @@ const TeacherProfile = () => {
         </div>
 
         {/* PROFILE HEADER CARD */}
-        <ProfileHeaderCard teacher={teacher} API_BASE_URL={API_BASE_URL} />
+        <ProfileHeaderCard teacher={teacher} API_BASE_URL={API_BASE_URL} themeColor={themeColor} />
 
-        {/* CONTACT & TEACHING LOAD SECTIONS */}
-        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 items-start">
-          <ContactInfoCard teacher={teacher} />
-          <TeachingLoadCard teacher={teacher} />
+        {/* INFO GRID */}
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 items-start">
+          <ContactInfoCard teacher={teacher} themeColor={themeColor} />
+          <TeachingLoadCard teacher={teacher} themeColor={themeColor} />
         </div>
       </div>
     </div>
   );
 };
 
-/**
- * Profile header with avatar and basic info
- */
-const ProfileHeaderCard = ({ teacher, API_BASE_URL }) => (
-  <Card className="shrink-0 p-5 sm:p-6" animationDelay={ANIMATION_DELAYS.firstCard}>
-    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-      {/* Avatar */}
-      <div className="relative border-4 border-white/80 rounded-[1.25rem] bg-white/50 backdrop-blur-sm shadow-sm shrink-0">
+const ProfileHeaderCard = ({ teacher, API_BASE_URL, themeColor }) => (
+  <Card className="shrink-0 p-6 sm:p-8 border-white/80 bg-white/70 backdrop-blur-xl rounded-[2.5rem]" animationDelay={ANIMATION_DELAYS.firstCard}>
+    <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
+      {/* Avatar with Branded Border */}
+      <div className="relative p-1.5 rounded-[2rem] bg-white shadow-xl" style={{ border: `2px solid ${themeColor}20` }}>
         {teacher?.profile_image ? (
           <img
             src={`${API_BASE_URL}/uploads/profiles/${teacher.profile_image}`}
             alt="Profile"
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover"
+            className="w-24 h-24 sm:w-32 sm:h-32 rounded-[1.6rem] object-cover"
           />
         ) : (
-          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-indigo-100/80 rounded-xl flex items-center justify-center text-indigo-600 text-4xl font-extrabold uppercase">
-            {teacher?.firstName?.charAt(0) || ''}
-            {teacher?.lastName?.charAt(0) || ''}
+          <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-[1.6rem] flex items-center justify-center text-white text-5xl font-black uppercase shadow-inner" style={{ backgroundColor: themeColor }}>
+            {teacher?.firstName?.charAt(0)}{teacher?.lastName?.charAt(0)}
           </div>
         )}
       </div>
 
-      {/* Info */}
-      <div className="flex-1 w-full flex flex-col sm:flex-row sm:justify-between items-center gap-4 sm:gap-0">
+      <div className="flex-1 w-full flex flex-col sm:flex-row sm:justify-between items-center sm:items-end gap-6">
         <div className="text-center sm:text-left">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 leading-tight capitalize tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-800 leading-tight tracking-tighter">
             {teacher.firstName} {teacher.lastName}
           </h1>
-          <p className="text-slate-600 font-bold mt-1.5 flex items-center justify-center sm:justify-start gap-1.5 text-[11px] sm:text-xs uppercase tracking-wider">
-            <Briefcase size={14} className="text-indigo-500" />
-            <span>{teacher.role}</span>
-            <span className="text-slate-600 mx-0.5">•</span>
-            <span>{teacher.department || 'Academic Dept'}</span>
-          </p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mt-3">
+             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 border border-white">
+                <Briefcase size={12} style={{ color: themeColor }} /> {teacher.role}
+             </div>
+             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 border border-white">
+                <Bookmark size={12} style={{ color: themeColor }} /> {teacher.department || 'Academic Dept'}
+             </div>
+          </div>
         </div>
 
-        {/* Status badges */}
-        <div className="flex flex-wrap items-center justify-center sm:flex-col sm:items-end gap-2">
-          <span
-            className={`px-3 py-1.5 border rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm ${
-              teacher.status === 'Active'
-                ? 'bg-emerald-100/60 text-emerald-700 border-white'
-                : 'bg-white/60 text-slate-500 border-white'
-            }`}
-          >
-            {teacher.status || 'Active'}
+        <div className="flex flex-col items-center sm:items-end gap-2.5">
+          <span className="px-4 py-2 bg-emerald-100/80 text-emerald-700 border border-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm">
+            {teacher.status || 'Active Account'}
           </span>
-          <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider bg-white/60 px-2.5 py-1 rounded-md border border-white shadow-sm">
-            EMP ID: {teacher.id}
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            Employee ID: <span className="text-slate-800">{teacher.id}</span>
           </span>
         </div>
       </div>
@@ -179,93 +177,59 @@ const ProfileHeaderCard = ({ teacher, API_BASE_URL }) => (
   </Card>
 );
 
-/**
- * Contact information card
- */
-const ContactInfoCard = ({ teacher }) => (
-  <Card className="lg:col-span-1 w-full flex flex-col" animationDelay={ANIMATION_DELAYS.firstCard + ANIMATION_DELAYS.increment * 2}>
+const ContactInfoCard = ({ teacher, themeColor }) => (
+  <Card className="lg:col-span-1 w-full bg-white/70 backdrop-blur-xl border-white rounded-[2rem]" animationDelay={ANIMATION_DELAYS.firstCard + 100}>
     <CardHeader title="Contact Info" icon={User} />
-    <div className="p-5 space-y-4">
-      <InfoItem
-        icon={<Mail size={14} />}
-        label="Email"
-        value={teacher.email}
-        isMissing={!teacher.email}
-      />
-      <InfoItem
-        icon={<Phone size={14} />}
-        label="Phone"
-        value={teacher.phone}
-        isMissing={!teacher.phone}
-      />
-      <div className="pt-4 border-t border-white/50">
-        <InfoItem
-          icon={<Award size={14} />}
-          label="Date Hired"
-          value={teacher.dateHired}
-          isMissing={!teacher.dateHired}
-        />
+    <div className="p-6 space-y-5">
+      <InfoItem icon={<Mail size={16} style={{ color: themeColor }} />} label="Official Email" value={teacher.email} isMissing={!teacher.email} />
+      <InfoItem icon={<Phone size={16} style={{ color: themeColor }} />} label="Phone Number" value={teacher.phone} isMissing={!teacher.phone} />
+      <div className="pt-5 border-t border-slate-100">
+        <InfoItem icon={<Award size={16} style={{ color: themeColor }} />} label="Date of Appointment" value={teacher.dateHired} isMissing={!teacher.dateHired} />
       </div>
     </div>
   </Card>
 );
 
-/**
- * Teaching load / subjects card
- */
-const TeachingLoadCard = ({ teacher }) => (
-  <Card className="lg:col-span-2 w-full flex flex-col" animationDelay={ANIMATION_DELAYS.firstCard + ANIMATION_DELAYS.increment * 3}>
+const TeachingLoadCard = ({ teacher, themeColor }) => (
+  <Card className="lg:col-span-2 w-full bg-white/70 backdrop-blur-xl border-white rounded-[2rem]" animationDelay={ANIMATION_DELAYS.firstCard + 200}>
     <CardHeader
-      title="Teaching Load"
+      title="Current Teaching Load"
       icon={BookOpen}
       action={
-        <span className="text-[10px] font-black uppercase tracking-widest bg-white/60 text-slate-600 px-2.5 py-1 rounded-md border border-white shadow-sm">
+        <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border border-white shadow-sm" style={{ backgroundColor: `${themeColor}15`, color: themeColor }}>
           {teacher.subjects?.length || 0} Subjects
         </span>
       }
     />
-    <div className="p-4 space-y-3">
+    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
       {teacher.subjects && teacher.subjects.length > 0 ? (
-        teacher.subjects.map(subject => (
-          <SubjectItem key={subject.id} subject={subject} />
-        ))
+        teacher.subjects.map(subject => <SubjectItem key={subject.id} subject={subject} themeColor={themeColor} />)
       ) : (
-        <div className="py-12">
-          <EmptyState
-            icon={BookOpen}
-            title="No subjects assigned"
-            message=""
-          />
+        <div className="col-span-full py-10">
+          <EmptyState icon={BookOpen} title="No teaching load assigned" message="Please contact the administrator for your schedule." />
         </div>
       )}
     </div>
   </Card>
 );
 
-/**
- * Single subject item in the teaching load list
- */
-const SubjectItem = ({ subject }) => (
-  <div className="p-3.5 rounded-xl border border-white bg-white/50 hover:bg-white/80 transition-all duration-300 shadow-sm group">
-    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-      <div>
-        <span className="text-[10px] font-black text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded-md border border-white uppercase tracking-widest">
-          {subject.code}
-        </span>
-        <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors mt-1">
-          {subject.name}
-        </h4>
-        <p className="text-[11px] text-slate-600 font-medium mt-0.5 flex items-center gap-1.5">
-          <User size={12} className="text-indigo-400" />
-          {subject.section || 'TBA'}
-        </p>
+const SubjectItem = ({ subject, themeColor }) => (
+  <div className="p-4 rounded-[1.5rem] border border-white bg-white/50 hover:bg-white transition-all duration-300 shadow-sm group">
+    <div className="flex justify-between items-start mb-3">
+      <span className="text-[9px] font-black px-2 py-1 rounded-lg border border-white uppercase tracking-widest shadow-sm" style={{ backgroundColor: `${themeColor}10`, color: themeColor }}>
+        {subject.code}
+      </span>
+      <div className="flex items-center gap-1.5 text-slate-400">
+        <Clock size={12} />
+        <span className="text-[10px] font-bold uppercase">{subject.schedule}</span>
       </div>
-      <div className="sm:text-right">
-        <p className="text-[11px] font-bold text-slate-500 flex items-center sm:justify-end gap-1.5 bg-white/60 px-2.5 py-1.5 rounded-md border border-white shadow-sm">
-          <Clock size={14} className="text-indigo-500" />
-          {subject.schedule}
-        </p>
-      </div>
+    </div>
+    <h4 className="font-black text-slate-800 text-sm group-hover:text-slate-900 leading-tight mb-2">
+      {subject.name}
+    </h4>
+    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 bg-slate-100/50 px-3 py-1.5 rounded-xl border border-white">
+      <User size={12} style={{ color: themeColor }} />
+      {subject.section || 'TBA'}
     </div>
   </div>
 );

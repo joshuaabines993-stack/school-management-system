@@ -1,10 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Save, ArrowLeft, CheckCircle, Calculator } from 'lucide-react';
+import { 
+  Save, ArrowLeft, CheckCircle, Calculator, 
+  GraduationCap, ClipboardCheck, Users 
+} from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import OfflineBanner from '../../utils/offlinebanner';
-import { LoadingSpinner, Card, CardHeader, Badge } from '../../components/shared/TeacherComponents';
+import { LoadingSpinner, Card, Badge } from '../../components/shared/TeacherComponents';
 import { SHARED_STYLES, ANIMATION_DELAYS } from '../../utils/teacherConstants';
 import {
   getTeacherLevel,
@@ -17,74 +20,87 @@ import {
 
 const GradeManagement = () => {
   const { classId } = useParams();
-  const { user, API_BASE_URL } = useAuth();
+  const { user, API_BASE_URL, branding } = useAuth();
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
+  const [classInfo, setClassInfo] = useState(null); // Fix para sa Header Title
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isServerOffline, setIsServerOffline] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
+  const themeColor = branding?.theme_color || '#6366f1';
   const teacherLevel = getTeacherLevel(user?.role);
   const categories = getGradingCategories(teacherLevel);
 
   /**
-   * Fetch grades from API with fallback to offline mode
+   * Fetch Class Metadata and Student Grades
+   * Aligned with get_class_grades.php and sms_db schema
    */
-  const fetchGrades = useCallback(async (isInitialLoad = false) => {
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) setIsLoading(true);
     setIsRetrying(true);
 
     try {
       const token = localStorage.getItem('sms_token') || '';
-      const res = await axios.get(`${API_BASE_URL}/teacher/get_class_grades.php`, {
-        params: { class_id: classId },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      
+      // Sabay na kukunin ang grades at metadata para sa subject title
+      const [gradesRes, metaRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/teacher/get_class_grades.php`, {
+          params: { class_id: classId },
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        // Gagamitin natin ang endpoint na ito para makuha ang Subject at Section info
+        axios.get(`${API_BASE_URL}/teacher/get_my_schedule.php?teacher_id=${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ]);
 
-      const data = res.data.data || res.data;
-      if (data) {
-        setStudents(data);
+      // Handle Student Grades
+      if (gradesRes.data.status === 'success') {
+        setStudents(gradesRes.data.data || []);
         setIsServerOffline(false);
       }
+
+      // Handle Header Metadata (Subject Name and Section)
+      if (metaRes.data.status === 'success') {
+        const currentClass = metaRes.data.data.find(c => c.id == classId);
+        if (currentClass) setClassInfo(currentClass);
+      }
+
     } catch (error) {
-      console.error('Fetch grades error:', error);
+      console.error('Fetch error:', error);
       setIsServerOffline(true);
       setStudents(getDummyStudentData(teacherLevel));
     } finally {
-      if (isInitialLoad) setIsLoading(false);
+      setIsLoading(false);
       setTimeout(() => setIsRetrying(false), 800);
     }
-  }, [classId, teacherLevel, API_BASE_URL]);
+  }, [classId, teacherLevel, API_BASE_URL, user?.id]);
 
   useEffect(() => {
-    if (user?.id) {
-      fetchGrades(true);
-    } else if (user) {
-      setIsLoading(false);
-    }
-  }, [user, fetchGrades]);
+    if (user?.id) fetchData(true);
+  }, [user?.id, fetchData]);
 
-  /**
-   * Update a student's grade component
-   */
   const handleInputChange = (id, field, value) => {
     setStudents(prev =>
-      prev.map(s =>
-        s.id === id ? { ...s, [field]: parseFloat(value) || 0 } : s
-      )
+      prev.map(s => s.id === id ? { ...s, [field]: parseFloat(value) || 0 } : s)
     );
   };
 
   /**
-   * Save all grades to backend
+   * Save Grades - Aligned with save_grades.php
    */
   const saveAllGrades = async () => {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('sms_token') || '';
-      const payload = prepareGradesPayload(students, classId, teacherLevel);
+      const payload = {
+        class_id: parseInt(classId),
+        students: students
+      };
 
       const res = await axios.post(`${API_BASE_URL}/teacher/save_grades.php`, payload, {
         headers: {
@@ -96,149 +112,145 @@ const GradeManagement = () => {
       if (res.data.status === 'success') {
         setStatusMsg({ type: 'success', text: 'Grades synced to database!' });
       } else {
-        throw new Error(res.data.message || 'Failed to save grades');
+        throw new Error(res.data.message);
       }
     } catch (err) {
-      console.error('Save grades error:', err);
-      setStatusMsg({ type: 'error', text: 'Connection failed. Check network.' });
+      setStatusMsg({ type: 'error', text: 'Sync failed. Check connection.' });
     } finally {
       setIsSaving(false);
       setTimeout(() => setStatusMsg(null), 3000);
     }
   };
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading Gradebook..." />;
-  }
+  if (isLoading) return <LoadingSpinner message="Opening Gradebook..." />;
 
   return (
-    <div className="w-full h-full bg-transparent">
-      <style>{SHARED_STYLES}</style>
+    /* PAGE SCROLLING ENABLED */
+    <div className="w-full h-full overflow-y-auto custom-scroll pr-2 pb-10">
+      <style>{`
+        ${SHARED_STYLES}
+        .header-jakarta { font-family: 'Plus Jakarta Sans', sans-serif !important; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: ${themeColor}; border-radius: 10px; }
+      `}</style>
 
-      <div className="max-w-7xl mx-auto space-y-4">
-        {/* HEADER */}
-        <div
-          className="animate-stagger flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/40 backdrop-blur-md px-5 py-4 rounded-xl border border-white shadow-sm"
-          style={{ animationDelay: ANIMATION_DELAYS.header }}
-        >
-          <div className="flex items-center gap-3">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* HEADER SECTION - Aligned with Subject Info */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white/70 backdrop-blur-xl px-6 py-5 rounded-[2rem] border border-white shadow-sm">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 bg-white/60 hover:bg-white rounded-lg border border-white shadow-sm transition-colors text-slate-600"
+              className="p-3 bg-white hover:bg-slate-50 rounded-2xl border border-slate-100 shadow-sm transition-all text-slate-600 active:scale-95"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={20} />
             </button>
             <div>
-              <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Manage Grades</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge
-                  text={`${teacherLevel} System`}
-                  variant="info"
-                />
-                <span className="text-[10px] text-slate-600 font-bold uppercase">Class: {classId}</span>
+              <h2 className="header-jakarta text-2xl font-black text-slate-800 tracking-tight">
+                {classInfo?.subject_description || "Grade Management"}
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 mt-1">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-500 border border-white">
+                   <GraduationCap size={12} style={{ color: themeColor }} /> {classInfo?.grade_level || 'Grade Level'}
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-500 border border-white">
+                   <ClipboardCheck size={12} style={{ color: themeColor }} /> Section: {classInfo?.section || 'TBA'}
+                </div>
+                <Badge text={`${teacherLevel} System`} variant="info" />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-            <button className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/60 text-slate-600 border border-white rounded-lg font-bold text-[11px] hover:bg-white shadow-sm transition-all">
-              <Calculator size={14} /> Tools
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs hover:bg-slate-50 transition-all shadow-sm">
+              <Calculator size={16} /> Analysis
             </button>
             <button
               onClick={saveAllGrades}
               disabled={isSaving || isServerOffline}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-[11px] hover:bg-indigo-700 disabled:opacity-50 shadow-sm transition-all"
+              className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3 text-white rounded-2xl font-black text-xs shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              style={{ backgroundColor: themeColor }}
             >
-              {isSaving ? 'Saving...' : <><Save size={14} /> Save</>}
+              {isSaving ? 'Saving...' : <><Save size={16} /> Save Changes</>}
             </button>
           </div>
         </div>
 
-        {/* OFFLINE BANNER */}
-        <OfflineBanner
-          isServerOffline={isServerOffline}
-          isRetrying={isRetrying}
-          onRetry={() => fetchGrades(false)}
-        />
+        <OfflineBanner isServerOffline={isServerOffline} isRetrying={isRetrying} onRetry={() => fetchData(false)} />
 
-        {/* STATUS MESSAGE */}
         {statusMsg && (
-          <div
-            className={`animate-stagger p-3 px-4 rounded-xl border flex items-center gap-2.5 shadow-sm backdrop-blur-md transition-all ${
-              statusMsg.type === 'success'
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-700'
-                : 'bg-red-50/80 border-red-200 text-red-700'
-            }`}
-            style={{ animationDelay: `${ANIMATION_DELAYS.banner}ms` }}
-          >
-            <CheckCircle size={16} />
-            <span className="text-[11px] font-bold">{statusMsg.text}</span>
+          <div className={`p-4 rounded-2xl border flex items-center gap-3 shadow-sm backdrop-blur-md animate-stagger ${
+            statusMsg.type === 'success' ? 'bg-emerald-50/90 border-emerald-200 text-emerald-700' : 'bg-red-50/90 border-red-200 text-red-700'
+          }`}>
+            <CheckCircle size={18} />
+            <span className="text-xs font-black uppercase tracking-tight">{statusMsg.text}</span>
           </div>
         )}
 
-        {/* GRADES TABLE */}
-        <Card className="overflow-hidden flex flex-col" animationDelay={ANIMATION_DELAYS.firstCard}>
-          <div className="overflow-x-auto p-1">
-            <table className="w-full text-left whitespace-nowrap">
+        {/* GRADEBOOK TABLE CARD */}
+        <Card className="overflow-hidden bg-white/70 backdrop-blur-xl border-white rounded-[2rem] shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-slate-500 text-[9px] font-black uppercase tracking-widest border-b border-white/50 bg-white/20">
-                  <th className="px-5 py-3 rounded-tl-lg">Student</th>
+                <tr className="border-b border-slate-100 bg-slate-50/50 sticky top-0 z-20">
+                  <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+                    <div className="flex items-center gap-2">
+                      <Users size={14} style={{ color: themeColor }} /> Student Name
+                    </div>
+                  </th>
                   {categories.map(cat => (
-                    <th key={cat.key} className="px-3 py-3 text-center">
-                      {cat.label} ({cat.percentage})
+                    <th key={cat.key} className="px-4 py-5 text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cat.label}</span>
+                        <span className="text-[9px] font-bold text-indigo-500 mt-0.5">{cat.percentage}</span>
+                      </div>
                     </th>
                   ))}
-                  <th className="px-5 py-3 text-center">Final</th>
-                  <th className="px-5 py-3 text-center rounded-tr-lg">Remarks</th>
+                  <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Final Grade</th>
+                  <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
                 </tr>
               </thead>
-              <tbody className="text-slate-800 text-xs">
-                {students.map((student, index) => {
+              <tbody className="divide-y divide-slate-50">
+                {students.map((student) => {
                   const final = calculateFinalGrade(student, teacherLevel);
                   const status = getGradeStatus(final, teacherLevel);
 
                   return (
-                    <tr
-                      key={student.id}
-                      className="animate-stagger hover:bg-white/50 transition-colors border-b border-white/30 last:border-0 group"
-                      style={{ animationDelay: `${ANIMATION_DELAYS.firstCard + index * ANIMATION_DELAYS.increment}ms` }}
-                    >
-                      {/* Student Name */}
-                      <td className="px-5 py-2.5">
+                    <tr key={student.id} className="hover:bg-white/80 transition-colors group">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg bg-indigo-100/80 text-indigo-700 flex items-center justify-center font-bold text-[10px] border border-white shadow-sm group-hover:scale-105 transition-transform">
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs text-white shadow-sm" style={{ backgroundColor: themeColor }}>
                             {student.name.charAt(0)}
                           </div>
-                          <span className="font-bold text-slate-800">{student.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-sm">{student.name}</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{student.student_number}</span>
+                          </div>
                         </div>
                       </td>
 
-                      {/* Grade Input Fields */}
                       {categories.map(cat => (
-                        <td key={cat.key} className="px-3 py-2.5">
+                        <td key={cat.key} className="px-4 py-4">
                           <input
                             type="number"
-                            step={cat.key.includes('college') ? '0.25' : '1'}
-                            min="0"
-                            max={teacherLevel === 'K12' ? 100 : 4}
+                            step={teacherLevel === 'COLLEGE' ? '0.25' : '1'}
                             value={student[cat.key] || 0}
                             onChange={e => handleInputChange(student.id, cat.key, e.target.value)}
-                            className="w-14 mx-auto block p-1.5 bg-white/50 backdrop-blur-sm border border-white rounded-md text-center font-bold text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all shadow-sm hover:bg-white/80"
+                            className="w-16 mx-auto block p-2.5 bg-slate-100/50 border border-transparent rounded-xl text-center font-black text-xs focus:bg-white focus:ring-2 outline-none transition-all"
+                            style={{ focusRingColor: themeColor }}
                           />
                         </td>
                       ))}
 
-                      {/* Final Grade */}
-                      <td className="px-5 py-2.5 text-center font-black text-sm text-slate-800 drop-shadow-sm">
-                        {final}
+                      <td className="px-6 py-4 text-center">
+                        <span className="header-jakarta text-base font-black text-slate-800">{final}</span>
                       </td>
 
-                      {/* Status Badge */}
-                      <td className="px-5 py-2.5 text-center">
-                        <Badge
-                          text={status}
-                          variant={status === 'Passed' ? 'success' : 'error'}
-                        />
+                      <td className="px-6 py-4 text-center">
+                        <div className={`inline-flex px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                          status === 'Passed' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                        }`}>
+                          {status}
+                        </div>
                       </td>
                     </tr>
                   );

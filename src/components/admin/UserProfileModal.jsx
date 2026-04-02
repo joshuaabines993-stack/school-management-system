@@ -35,7 +35,7 @@ const UserProfileModal = ({ isOpen, onClose, user, branding, logout }) => {
     if (profileImage) formData.append('profile_image', profileImage);
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/update_user_profile.php`, formData, {
+     const res = await axios.post(`${API_BASE_URL}/admin/update_user_profile.php`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
