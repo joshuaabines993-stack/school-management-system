@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Users, Clock, AlertCircle, Zap, ChevronRight, X } from 'lucide-react'; // Idinagdag ang mga kailangang icons
+import { BookOpen, Users, Clock, AlertCircle, Zap, ChevronRight, X, CheckCircle2 } from 'lucide-react'; 
 import { LOADING_SPINNER } from '../../utils/teacherConstants';
 
 /**
@@ -94,11 +94,13 @@ export const CardHeader = ({ title, icon: Icon, action }) => (
 );
 
 /**
- * Reusable Class Details Modal
+ * 🟢 FIXED: Reusable Class Details Modal
  */
 export const ClassDetailsModal = ({ class: selectedClass, onClose, navigate }) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity">
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform-gpu scale-100">
+      
+      {/* HEADER */}
       <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
@@ -108,28 +110,33 @@ export const ClassDetailsModal = ({ class: selectedClass, onClose, navigate }) =
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
         >
           <X size={18} />
         </button>
       </div>
+
+      {/* BODY */}
       <div className="p-5 space-y-4">
         <div>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Subject</p>
-          <p className="text-base font-bold text-slate-800">{selectedClass.subject}</p>
+          <p className="text-base font-bold text-slate-800 leading-tight">{selectedClass.subject}</p>
         </div>
+        
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Section</p>
             <p className="text-sm font-bold text-slate-800">{selectedClass.section_name || 'TBA'}</p>
           </div>
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Students</p>
-            <p className="text-sm font-bold text-slate-800">{selectedClass.student_count || 0}</p>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Schedule</p>
+            <p className="text-sm font-bold text-slate-800 truncate" title={selectedClass.schedule}>{selectedClass.schedule || 'TBA'}</p>
           </div>
         </div>
       </div>
-      <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+
+      {/* FOOTER ACTIONS */}
+      <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
         <button
           onClick={onClose}
           className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors"
@@ -137,7 +144,10 @@ export const ClassDetailsModal = ({ class: selectedClass, onClose, navigate }) =
           Close
         </button>
         <button
-          onClick={() => navigate(`/teacher/grades/${selectedClass.id}`)}
+          onClick={() => {
+            onClose(); // 🟢 isasara muna ang modal para hindi mag-bug ang UI
+            navigate(`/teacher/grades/${selectedClass.id}`); // 🟢 Dito idinidirekta sa gradebook ng class na iyon
+          }}
           className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
         >
           Manage Grades <ChevronRight size={14} />
@@ -148,58 +158,52 @@ export const ClassDetailsModal = ({ class: selectedClass, onClose, navigate }) =
 );
 
 /**
- * Reusable Task Details Modal
+ * Reusable TaskDetailsModal (Hindi na ginagamit dahil napalitan ng ReadNotificationModal, pero iniwan para hindi masira if may ibang gumagamit)
  */
-export const TaskDetailsModal = ({ task, onClose }) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity">
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform-gpu scale-100">
-      <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-orange-50/50">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
-            <Zap size={18} />
+export const TaskDetailsModal = ({ task, onClose }) => {
+  if (!task) return null;
+
+  const isUrgent = task.status === 'Urgent';
+  const isPending = task.status === 'Pending';
+
+  const IconComponent = isUrgent ? Zap : isPending ? AlertCircle : Bell;
+  const iconBg = isUrgent ? 'bg-red-100 text-red-500' : isPending ? 'bg-orange-100 text-orange-500' : 'bg-blue-100 text-blue-600';
+  const statusBg = isUrgent ? 'bg-red-50 border-red-200 text-red-700' : 'bg-orange-50 border-orange-200 text-orange-700';
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+        <div className="px-6 py-4 flex justify-between items-start pt-6 shrink-0 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex gap-4 items-start">
+            <div className={`p-3 rounded-2xl shrink-0 ${iconBg}`}><IconComponent size={24} /></div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800 leading-tight mb-1 tracking-tight">{task.title}</h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {task.sender ? `Assigned by ` : 'Task Type: '}
+                <span className="font-bold text-slate-700">{task.sender || task.type || 'System'}</span>
+              </p>
+            </div>
           </div>
-          <h3 className="font-bold text-slate-800">Task Details</h3>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors shrink-0"><X size={20} /></button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          <X size={18} />
-        </button>
-      </div>
-      <div className="p-5 space-y-4">
-        <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Task Title</p>
-          <p className="text-base font-bold text-slate-800">{task.title}</p>
-        </div>
-        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Description</p>
-          <p className="text-sm font-medium text-slate-700">{task.description}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Due Date</p>
-            <p className="text-sm font-bold text-slate-800">{task.due}</p>
+        <div className="p-6 pt-5 overflow-y-auto custom-scrollbar flex-1">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {task.due && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700"><Clock size={14} /> Due: {task.due}</div>}
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-bold uppercase tracking-wider ${statusBg}`}>Status: {task.status}</div>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Status</p>
-            <p className={`text-sm font-bold ${task.status === 'Urgent' ? 'text-red-600' : 'text-orange-600'}`}>
-              {task.status}
-            </p>
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
+            {task.message || task.description || 'No additional instructions provided for this task.'}
           </div>
         </div>
-      </div>
-      <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 text-xs font-bold text-white bg-orange-500 rounded-lg shadow-sm hover:bg-orange-600 transition-colors"
-        >
-          Mark as Read
-        </button>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end items-center shrink-0">
+          <button onClick={onClose} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm">
+            <CheckCircle2 size={16} /> Mark as Read
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * Reusable Badge component

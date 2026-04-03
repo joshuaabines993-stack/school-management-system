@@ -139,6 +139,7 @@ function App() {
             <Route path="subjects" element={<TeacherSubjects />} />
             <Route path="profile" element={<TeacherProfile />} />
             <Route path="/teacher/sections/:classId" element={<GradeManagement />} />
+            <Route path="/teacher/grades/:classId" element={<GradeManagement />} />
             <Route path="activities" element={<TeacherActivities />} />
           <Route path="activities/:activityId/grading" element={<TeacherActivityGrading />} />
           </Route>
