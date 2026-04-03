@@ -1,28 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Megaphone, Calendar, AlertCircle, Info, FileText, DollarSign, ShieldAlert } from 'lucide-react';
+import { 
+  Megaphone, Calendar, AlertCircle, Info, FileText, 
+  DollarSign, ShieldAlert, User, Bell 
+} from 'lucide-react';
 import OfflineBanner from '../../utils/offlinebanner';
 import { useAuth } from '../../context/AuthContext';
-import { LoadingSpinner, PageHeader, Badge, Card } from '../../components/shared/TeacherComponents';
-import { SHARED_STYLES, DEPARTMENT_STYLES, PRIORITY_TYPES, ANIMATION_DELAYS } from '../../utils/teacherConstants';
+import { LoadingSpinner, PageHeader, EmptyState } from '../../components/shared/TeacherComponents';
+import { DEPARTMENT_STYLES, PRIORITY_TYPES, ANIMATION_DELAYS, SHARED_STYLES } from '../../utils/teacherConstants';
 
 const TeacherNotify = () => {
-  const { API_BASE_URL } = useAuth();
+  const { API_BASE_URL, branding } = useAuth(); // Kinuha ang branding para sa theme color
   const [announcements, setAnnouncements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isServerOffline, setIsServerOffline] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  /**
-   * Fetch announcements with caching support
-   */
+  const themeColor = branding?.theme_color || '#6366f1';
+
   const fetchAnnouncements = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     setIsRetrying(true);
 
     const cachedAnnouncements = localStorage.getItem('sms_teacher_announcements');
-
-    // Use cached data while fetching fresh data
     if (cachedAnnouncements) {
       try {
         setAnnouncements(JSON.parse(cachedAnnouncements));
@@ -36,7 +36,7 @@ const TeacherNotify = () => {
       const token = localStorage.getItem('sms_token') || '';
       const response = await axios.get(`${API_BASE_URL}/teacher/get_announcements.php`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 3000,
+        timeout: 5000,
       });
 
       if (response.data.status === 'success') {
@@ -50,10 +50,7 @@ const TeacherNotify = () => {
     } catch (error) {
       console.error('Connection failed:', error);
       setIsServerOffline(true);
-
-      if (!cachedAnnouncements) {
-        setAnnouncements([]);
-      }
+      if (!cachedAnnouncements) setAnnouncements([]);
     } finally {
       if (showLoading) setIsLoading(false);
       setTimeout(() => setIsRetrying(false), 800);
@@ -64,27 +61,33 @@ const TeacherNotify = () => {
     fetchAnnouncements(true);
   }, [fetchAnnouncements]);
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading announcements..." />;
-  }
+  if (isLoading) return <LoadingSpinner message="Fetching announcements..." />;
 
-  const iconMap = {
-    FileText,
-    DollarSign,
-    ShieldAlert,
-    Megaphone,
-  };
+  const iconMap = { FileText, DollarSign, ShieldAlert, Megaphone };
 
   return (
-    <div className="w-full h-full bg-transparent">
-      <style>{SHARED_STYLES}</style>
+    /* SCROLLABLE CONTAINER WITH BRANDED SCROLLBAR */
+    <div className="w-full h-full overflow-y-auto custom-scroll pr-2 pb-10">
+      <style>{`
+        ${SHARED_STYLES}
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { 
+          background-color: ${themeColor}; 
+          border-radius: 20px; 
+          border: 2px solid transparent; 
+          background-clip: content-box; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: ${themeColor}; opacity: 0.8; }
+      `}</style>
 
-      <div className="max-w-4xl mx-auto space-y-4 pb-10">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* HEADER */}
         <PageHeader
-          icon={<Megaphone size={20} />}
+          icon={<Bell size={24} />}
           title="Announcements"
-          subtitle="Updates and memos from school administration."
+          subtitle="Stay updated with the latest memos and notices from the school administration."
+          badge={`${announcements.length} Recent Updates`}
         />
 
         {/* OFFLINE BANNER */}
@@ -97,7 +100,7 @@ const TeacherNotify = () => {
         </div>
 
         {/* ANNOUNCEMENTS LIST */}
-        <div className="space-y-4">
+        <div className="space-y-5">
           {announcements.length > 0 ? (
             announcements.map((announcement, index) => (
               <AnnouncementCard
@@ -105,15 +108,18 @@ const TeacherNotify = () => {
                 announcement={announcement}
                 index={index}
                 iconMap={iconMap}
+                themeColor={themeColor}
               />
             ))
-          ) : (
-            !isServerOffline && (
-              <div className="text-center py-10 bg-white/40 backdrop-blur-md rounded-xl border border-white shadow-sm">
-                <p className="text-sm font-bold text-slate-500">No new announcements at this time.</p>
-              </div>
-            )
-          )}
+          ) : !isServerOffline ? (
+            <div className="py-20 flex flex-col items-center justify-center bg-white/40 backdrop-blur-md rounded-[2.5rem] border border-white shadow-sm">
+              <EmptyState
+                icon={Megaphone}
+                title="All caught up!"
+                message="No new announcements at this time. Check back later for updates."
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -121,87 +127,83 @@ const TeacherNotify = () => {
 };
 
 /**
- * Individual announcement card component
+ * Enhanced Announcement Card
  */
-const AnnouncementCard = ({ announcement, index, iconMap }) => {
+const AnnouncementCard = ({ announcement, index, iconMap, themeColor }) => {
   const deptStyle = DEPARTMENT_STYLES[announcement.department] || DEPARTMENT_STYLES.default;
   const DepartmentIcon = iconMap[deptStyle.icon] || Megaphone;
   const priorityStyle = PRIORITY_TYPES[announcement.type] || PRIORITY_TYPES.general;
 
   return (
-    <Card
-      className="overflow-hidden hover:bg-white/60 hover:-translate-y-0.5 transition-all duration-300 transform-gpu group"
-      animationDelay={ANIMATION_DELAYS.firstCard + index * ANIMATION_DELAYS.increment}
+    <div
+      className="animate-stagger group relative flex flex-col bg-white/70 backdrop-blur-xl border border-white rounded-[2rem] shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:bg-white"
+      style={{ animationDelay: `${ANIMATION_DELAYS.firstCard + index * ANIMATION_DELAYS.increment}ms` }}
     >
-      {/* Header */}
-      <div
-        className={`px-5 py-2.5 flex flex-wrap justify-between items-center gap-2 border-b backdrop-blur-sm ${deptStyle.bg} ${deptStyle.border}`}
-      >
-        <div className="flex items-center space-x-2">
-          <span
-            className={`${deptStyle.color} bg-white/50 p-1.5 rounded-md border border-white/50 shadow-sm group-hover:scale-110 transition-transform duration-300`}
+      {/* SIDE ACCENT LINE */}
+      <div 
+        className="absolute left-0 top-10 bottom-10 w-1.5 rounded-r-full transition-all duration-300"
+        style={{ 
+          backgroundColor: announcement.type === 'urgent' ? '#ef4444' : themeColor,
+          opacity: 0.6
+        }}
+      />
+
+      {/* CARD HEADER: Department & Priority */}
+      <div className="px-6 py-4 flex justify-between items-center border-b border-slate-100/50">
+        <div className="flex items-center gap-3">
+          <div 
+            className={`p-2 rounded-xl border shadow-sm ${deptStyle.bg} ${deptStyle.border}`}
           >
-            <DepartmentIcon size={16} />
-          </span>
-          <span className={`font-black uppercase tracking-widest text-[9px] ${deptStyle.color}`}>
-            {announcement.department ? `${announcement.department} Dept` : 'Department (NULL)'}
+            <DepartmentIcon size={16} className={deptStyle.color} />
+          </div>
+          <span className={`font-black uppercase tracking-widest text-[10px] ${deptStyle.color}`}>
+            {announcement.department ? `${announcement.department} Department` : 'General Notice'}
           </span>
         </div>
 
-        {/* Priority Badge */}
         <PriorityBadge type={announcement.type} style={priorityStyle} />
       </div>
 
-      {/* Content */}
-      <div className="p-5">
-        <h3
-          className={`text-base font-extrabold mb-2 leading-tight tracking-tight ${
-            announcement.title ? 'text-slate-800' : 'text-slate-400 italic'
-          }`}
-        >
-          {announcement.title || 'Title missing'}
+      {/* CONTENT AREA */}
+      <div className="p-7">
+        <h3 className="text-xl font-black text-slate-800 leading-tight tracking-tight mb-3 group-hover:text-slate-900 transition-colors">
+          {announcement.title || 'Untitled Announcement'}
         </h3>
-        <p
-          className={`text-[11px] leading-relaxed mb-4 break-words ${
-            announcement.content ? 'text-slate-600' : 'text-slate-400 italic'
-          }`}
-        >
-          {announcement.content || 'Content missing.'}
+        <p className="text-[13px] leading-relaxed text-slate-600 mb-6 font-medium">
+          {announcement.content || 'No description provided.'}
         </p>
 
-        {/* Metadata Footer */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-[10px] text-slate-500 font-bold border-t border-white/50 pt-3">
-          <div className="flex items-center">
-            <Info size={12} className="mr-1.5 text-indigo-400" />
-            Posted by:
-            <span className={`ml-1 ${announcement.author ? 'text-slate-700' : 'text-slate-400 italic'}`}>
-              {announcement.author || 'Unknown'}
-            </span>
+        {/* METADATA FOOTER */}
+        <div className="flex flex-wrap items-center gap-4 text-[10px] font-black uppercase tracking-widest pt-5 border-t border-slate-50">
+          <div className="flex items-center gap-2 bg-slate-100/50 px-3 py-1.5 rounded-lg text-slate-500">
+            <User size={12} style={{ color: themeColor }} />
+            <span>Posted by: <span className="text-slate-800">{announcement.author || 'Admin'}</span></span>
           </div>
-          <div className="hidden sm:block text-slate-300">•</div>
-          <div className="flex items-center">
-            <Calendar size={12} className="mr-1.5 text-indigo-400" />
-            <span className={announcement.date ? 'text-slate-700' : 'text-slate-400 italic'}>
-              {announcement.date || 'No date'}
-            </span>
+          
+          <div className="flex items-center gap-2 bg-slate-100/50 px-3 py-1.5 rounded-lg text-slate-500">
+            <Calendar size={12} style={{ color: themeColor }} />
+            <span className="text-slate-800">{announcement.date || 'Today'}</span>
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
 /**
- * Priority badge component with conditional rendering
+ * Branded Priority Badge
  */
 const PriorityBadge = ({ type, style }) => {
-  const UrgentIcon = type === 'urgent' ? AlertCircle : null;
-
+  const isUrgent = type === 'urgent';
+  
   return (
     <span
-      className={`${style.style} border border-white px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1`}
+      className={`${style.style} border border-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 ${
+        isUrgent ? 'animate-pulse' : ''
+      }`}
     >
-      {UrgentIcon && <UrgentIcon size={10} />}
+      {isUrgent && <ShieldAlert size={12} className="text-red-600" />}
+      {!isUrgent && <Info size={12} className="text-indigo-600" />}
       {style.label}
     </span>
   );

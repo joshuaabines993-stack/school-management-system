@@ -1,252 +1,413 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Save, ArrowLeft, CheckCircle, Calculator } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import {
+  Save, ArrowLeft, CheckCircle, AlertCircle,
+  GraduationCap, ClipboardCheck, BookOpen,
+  Users, Award, TrendingUp,
+  Search, Filter, RefreshCw,
+} from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import OfflineBanner from '../../utils/offlinebanner';
-import { LoadingSpinner, Card, CardHeader, Badge } from '../../components/shared/TeacherComponents';
-import { SHARED_STYLES, ANIMATION_DELAYS } from '../../utils/teacherConstants';
 import {
   getTeacherLevel,
+  getGradingCategories,
   calculateFinalGrade,
   getGradeStatus,
-  getGradingCategories,
-  prepareGradesPayload,
-  getDummyStudentData,
+  normaliseStudent,
+  buildStudentPayload,
+  clampGrade,
 } from '../../utils/gradingUtils';
+import { gradeStyles } from '../../components/shared/GradeManagementStyles'; // IMPORT THE STYLES HERE
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 
 const GradeManagement = () => {
-  const { classId } = useParams();
-  const { user, API_BASE_URL } = useAuth();
-  const navigate = useNavigate();
+  const { classId }                      = useParams();
+  const { user, API_BASE_URL, branding } = useAuth();
+  const navigate                         = useNavigate();
 
-  const [students, setStudents] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const themeColor   = branding?.theme_color || '#6366f1';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [students,        setStudents]        = useState([]);
+  const [classInfo,       setClassInfo]       = useState(null);
+  const [isLoading,       setIsLoading]       = useState(true);
+  const [isSaving,        setIsSaving]        = useState(false);
   const [isServerOffline, setIsServerOffline] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [statusMsg, setStatusMsg] = useState(null);
+  const [isRetrying,      setIsRetrying]      = useState(false);
+  const [statusMsg,       setStatusMsg]       = useState(null);
+  const [searchQuery,     setSearchQuery]     = useState('');
+  const [filterStatus,    setFilterStatus]    = useState('All');
 
-  const teacherLevel = getTeacherLevel(user?.role);
-  const categories = getGradingCategories(teacherLevel);
+  const teacherLevel = getTeacherLevel(classInfo);
+  const categories   = getGradingCategories(teacherLevel);
 
-  /**
-   * Fetch grades from API with fallback to offline mode
-   */
-  const fetchGrades = useCallback(async (isInitialLoad = false) => {
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) setIsLoading(true);
     setIsRetrying(true);
 
     try {
-      const token = localStorage.getItem('sms_token') || '';
-      const res = await axios.get(`${API_BASE_URL}/teacher/get_class_grades.php`, {
-        params: { class_id: classId },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const token   = localStorage.getItem('sms_token') || '';
+      const headers = { Authorization: `Bearer ${token}` };
 
-      const data = res.data.data || res.data;
-      if (data) {
-        setStudents(data);
+      const [gradesRes, metaRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/teacher/get_class_grades.php`, {
+          params: { class_id: classId }, headers,
+        }),
+        axios.get(`${API_BASE_URL}/teacher/get_my_schedule.php`, {
+          params: { teacher_id: user.id }, headers,
+        }),
+      ]);
+
+      if (gradesRes.data.status === 'success') {
+        setStudents((gradesRes.data.data || []).map(normaliseStudent));
         setIsServerOffline(false);
       }
-    } catch (error) {
-      console.error('Fetch grades error:', error);
+
+      if (metaRes.data.status === 'success') {
+        const found = (metaRes.data.data || [])
+          .find(c => String(c.id) === String(classId));
+        if (found) setClassInfo(found);
+      }
+    } catch {
       setIsServerOffline(true);
-      setStudents(getDummyStudentData(teacherLevel));
     } finally {
-      if (isInitialLoad) setIsLoading(false);
+      setIsLoading(false);
       setTimeout(() => setIsRetrying(false), 800);
     }
-  }, [classId, teacherLevel, API_BASE_URL]);
+  }, [classId, API_BASE_URL, user?.id]);
 
   useEffect(() => {
-    if (user?.id) {
-      fetchGrades(true);
-    } else if (user) {
-      setIsLoading(false);
-    }
-  }, [user, fetchGrades]);
+    if (user?.id) fetchData(true);
+  }, [user?.id, fetchData]);
 
-  /**
-   * Update a student's grade component
-   */
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleInputChange = (id, field, value) => {
+    // Payagan ang empty string para madaling burahin gamit ang backspace
+    if (value === '') {
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, [field]: '' } : s));
+      return;
+    }
+
+    // Payagan LANG ang mga whole numbers (digits 0-9)
+    if (/^\d+$/.test(value)) {
+      const numValue = parseInt(value, 10);
+      
+      // Siguraduhing hindi lalagpas sa 100 ang input
+      if (numValue <= 100) {
+        setStudents(prev => prev.map(s => s.id === id ? { ...s, [field]: numValue } : s));
+      }
+    }
+  };
+
+  const handleInputBlur = (id, field, value) => {
+    // Kapag umalis na sa textbox (blur / tab), i-fo-force sa 0 kung naiwang blangko
     setStudents(prev =>
-      prev.map(s =>
-        s.id === id ? { ...s, [field]: parseFloat(value) || 0 } : s
-      )
+      prev.map(s => s.id === id ? { ...s, [field]: value === '' ? 0 : clampGrade(value) } : s)
     );
   };
 
-  /**
-   * Save all grades to backend
-   */
   const saveAllGrades = async () => {
+    // Magpakita ng confirmation bago magpatuloy
+    const isConfirmed = window.confirm(
+      "Are you sure you want to save/update the grades for this class? This will overwrite any existing grades."
+    );
+
+    if (!isConfirmed) {
+      return; // Wag ituloy kung nag-cancel si teacher
+    }
+
     setIsSaving(true);
     try {
       const token = localStorage.getItem('sms_token') || '';
-      const payload = prepareGradesPayload(students, classId, teacherLevel);
-
-      const res = await axios.post(`${API_BASE_URL}/teacher/save_grades.php`, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const res = await axios.post(
+        `${API_BASE_URL}/teacher/save_grades.php`,
+        {
+          class_id: parseInt(classId),
+          students:  students.map(s => buildStudentPayload(s, teacherLevel)),
         },
-      });
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
 
       if (res.data.status === 'success') {
-        setStatusMsg({ type: 'success', text: 'Grades synced to database!' });
+        setStatusMsg({ type: 'success', text: 'Grades successfully saved/updated!' });
       } else {
-        throw new Error(res.data.message || 'Failed to save grades');
+        throw new Error(res.data.message || 'Save failed');
       }
     } catch (err) {
-      console.error('Save grades error:', err);
-      setStatusMsg({ type: 'error', text: 'Connection failed. Check network.' });
+      setStatusMsg({ type: 'error', text: err.message || 'Save failed. Check connection.' });
     } finally {
       setIsSaving(false);
-      setTimeout(() => setStatusMsg(null), 3000);
+      setTimeout(() => setStatusMsg(null), 4000);
     }
   };
 
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const stats = useMemo(() => students.reduce(
+    (acc, s) => {
+      const f = calculateFinalGrade(s, teacherLevel);
+      getGradeStatus(f, teacherLevel) === 'Passed' ? acc.passed++ : acc.failed++;
+      return acc;
+    },
+    { passed: 0, failed: 0 }
+  ), [students, teacherLevel]);
+
+  const passRate = students.length
+    ? Math.round((stats.passed / students.length) * 100)
+    : 0;
+
+  const filteredStudents = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return students.filter(s => {
+      const matchSearch =
+        !q ||
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.student_number || '').toLowerCase().includes(q);
+      if (!matchSearch) return false;
+      if (filterStatus === 'All') return true;
+      const final = calculateFinalGrade(s, teacherLevel);
+      return getGradeStatus(final, teacherLevel) === filterStatus;
+    });
+  }, [students, searchQuery, filterStatus, teacherLevel]);
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading) {
-    return <LoadingSpinner message="Loading Gradebook..." />;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem' }}>
+        <style>{gradeStyles(themeColor)}</style>
+        <div className="gm-spinner" />
+        <p className="gm-loading-text">Opening Gradebook…</p>
+      </div>
+    );
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full h-full bg-transparent">
-      <style>{SHARED_STYLES}</style>
+    <div className="gm-root">
+      <style>{gradeStyles(themeColor)}</style>
 
-      <div className="max-w-7xl mx-auto space-y-4">
-        {/* HEADER */}
-        <div
-          className="animate-stagger flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/40 backdrop-blur-md px-5 py-4 rounded-xl border border-white shadow-sm"
-          style={{ animationDelay: ANIMATION_DELAYS.header }}
-        >
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 bg-white/60 hover:bg-white rounded-lg border border-white shadow-sm transition-colors text-slate-600"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Manage Grades</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge
-                  text={`${teacherLevel} System`}
-                  variant="info"
-                />
-                <span className="text-[10px] text-slate-600 font-bold uppercase">Class: {classId}</span>
-              </div>
+      {/* HEADER */}
+      <div className="gm-header">
+        <div className="gm-header-left">
+          <button className="gm-back-btn" onClick={() => navigate(-1)}>
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h1 className="gm-title">
+              {classInfo?.subject_description || 'Grade Management'}
+            </h1>
+            <div className="gm-meta">
+              <span className="gm-chip">
+                <GraduationCap size={11} />
+                {classInfo?.grade_level || 'Grade Level'}
+              </span>
+              <span className="gm-chip">
+                <ClipboardCheck size={11} />
+                Section: {classInfo?.section || classInfo?.section_name || 'TBA'}
+              </span>
+              <span className="gm-chip gm-chip--level">
+                <BookOpen size={11} />
+                {teacherLevel} System
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-            <button className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/60 text-slate-600 border border-white rounded-lg font-bold text-[11px] hover:bg-white shadow-sm transition-all">
-              <Calculator size={14} /> Tools
-            </button>
-            <button
-              onClick={saveAllGrades}
-              disabled={isSaving || isServerOffline}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-[11px] hover:bg-indigo-700 disabled:opacity-50 shadow-sm transition-all"
-            >
-              {isSaving ? 'Saving...' : <><Save size={14} /> Save</>}
-            </button>
           </div>
         </div>
 
-        {/* OFFLINE BANNER */}
-        <OfflineBanner
-          isServerOffline={isServerOffline}
-          isRetrying={isRetrying}
-          onRetry={() => fetchGrades(false)}
-        />
-
-        {/* STATUS MESSAGE */}
-        {statusMsg && (
-          <div
-            className={`animate-stagger p-3 px-4 rounded-xl border flex items-center gap-2.5 shadow-sm backdrop-blur-md transition-all ${
-              statusMsg.type === 'success'
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-700'
-                : 'bg-red-50/80 border-red-200 text-red-700'
-            }`}
-            style={{ animationDelay: `${ANIMATION_DELAYS.banner}ms` }}
+        <div className="gm-header-right">
+          {isServerOffline && (
+            <button
+              className="gm-retry-btn"
+              onClick={() => fetchData(false)}
+              disabled={isRetrying}
+            >
+              <RefreshCw size={14} className={isRetrying ? 'spin' : ''} />
+              {isRetrying ? 'Retrying…' : 'Retry'}
+            </button>
+          )}
+          <button
+            className="gm-save-btn"
+            onClick={saveAllGrades}
+            disabled={isSaving || isServerOffline}
           >
-            <CheckCircle size={16} />
-            <span className="text-[11px] font-bold">{statusMsg.text}</span>
+            {isSaving
+              ? <><div className="gm-btn-spinner" /> Saving…</>
+              : <><Save size={15} /> Save Grades</>}
+          </button>
+        </div>
+      </div>
+
+      {/* OFFLINE BANNER */}
+      {isServerOffline && (
+        <div className="gm-offline-banner">
+          <AlertCircle size={15} />
+          Server is offline. Showing cached data. Changes will not be saved.
+        </div>
+      )}
+
+      {/* STATUS MESSAGE */}
+      {statusMsg && (
+        <div className={`gm-status gm-status--${statusMsg.type}`}>
+          {statusMsg.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+          <span>{statusMsg.text}</span>
+        </div>
+      )}
+
+      {/* STATS */}
+      <div className="gm-stats">
+        <div className="gm-stat-card">
+          <div className="gm-stat-icon gm-stat-icon--blue"><Users size={18} /></div>
+          <div>
+            <p className="gm-stat-label">Total Students</p>
+            <p className="gm-stat-value">{students.length}</p>
           </div>
-        )}
+        </div>
+        <div className="gm-stat-card">
+          <div className="gm-stat-icon gm-stat-icon--green"><Award size={18} /></div>
+          <div>
+            <p className="gm-stat-label">Passed</p>
+            <p className="gm-stat-value">{stats.passed}</p>
+          </div>
+        </div>
+        <div className="gm-stat-card">
+          <div className="gm-stat-icon gm-stat-icon--red"><AlertCircle size={18} /></div>
+          <div>
+            <p className="gm-stat-label">Failed</p>
+            <p className="gm-stat-value">{stats.failed}</p>
+          </div>
+        </div>
+        <div className="gm-stat-card">
+          <div className="gm-stat-icon gm-stat-icon--purple"><TrendingUp size={18} /></div>
+          <div>
+            <p className="gm-stat-label">Pass Rate</p>
+            <p className="gm-stat-value">{passRate}%</p>
+          </div>
+          <div className="gm-pass-bar">
+            <div className="gm-pass-bar-fill" style={{ width: `${passRate}%` }} />
+          </div>
+        </div>
+      </div>
 
-        {/* GRADES TABLE */}
-        <Card className="overflow-hidden flex flex-col" animationDelay={ANIMATION_DELAYS.firstCard}>
-          <div className="overflow-x-auto p-1">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead>
-                <tr className="text-slate-500 text-[9px] font-black uppercase tracking-widest border-b border-white/50 bg-white/20">
-                  <th className="px-5 py-3 rounded-tl-lg">Student</th>
-                  {categories.map(cat => (
-                    <th key={cat.key} className="px-3 py-3 text-center">
-                      {cat.label} ({cat.percentage})
-                    </th>
-                  ))}
-                  <th className="px-5 py-3 text-center">Final</th>
-                  <th className="px-5 py-3 text-center rounded-tr-lg">Remarks</th>
+      {/* GRADEBOOK */}
+      <div className="gm-card">
+
+        {/* Toolbar */}
+        <div className="gm-toolbar">
+          <div className="gm-search-wrap">
+            <Search size={14} className="gm-search-icon" />
+            <input
+              type="text"
+              placeholder="Search student name or ID…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="gm-search"
+            />
+          </div>
+          <div className="gm-filter-wrap">
+            <Filter size={13} />
+            {['All', 'Passed', 'Failed'].map(f => (
+              <button
+                key={f}
+                className={`gm-filter-btn ${filterStatus === f ? 'active' : ''}`}
+                onClick={() => setFilterStatus(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="gm-table-wrap">
+          <table className="gm-table">
+            <thead>
+              <tr>
+                <th className="gm-th gm-th--name">
+                  <div className="gm-th-inner">
+                    <Users size={12} style={{ color: themeColor }} /> Student
+                  </div>
+                </th>
+                {categories.map(cat => (
+                  <th key={cat.key} className="gm-th gm-th--center">
+                    <div className="gm-cat-header">
+                      <span className="gm-cat-label">{cat.label}</span>
+                      <span className="gm-cat-pct">{cat.percentage}</span>
+                    </div>
+                  </th>
+                ))}
+                <th className="gm-th gm-th--center">Final Grade</th>
+                <th className="gm-th gm-th--center">Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={categories.length + 3} className="gm-empty">
+                    {students.length === 0
+                      ? 'No students enrolled in this class.'
+                      : 'No results match your filter.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="text-slate-800 text-xs">
-                {students.map((student, index) => {
-                  const final = calculateFinalGrade(student, teacherLevel);
-                  const status = getGradeStatus(final, teacherLevel);
+              ) : filteredStudents.map((student, idx) => {
+                const final  = calculateFinalGrade(student, teacherLevel);
+                const status = getGradeStatus(final, teacherLevel);
+                const passed = status === 'Passed';
 
-                  return (
-                    <tr
-                      key={student.id}
-                      className="animate-stagger hover:bg-white/50 transition-colors border-b border-white/30 last:border-0 group"
-                      style={{ animationDelay: `${ANIMATION_DELAYS.firstCard + index * ANIMATION_DELAYS.increment}ms` }}
-                    >
-                      {/* Student Name */}
-                      <td className="px-5 py-2.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg bg-indigo-100/80 text-indigo-700 flex items-center justify-center font-bold text-[10px] border border-white shadow-sm group-hover:scale-105 transition-transform">
-                            {student.name.charAt(0)}
-                          </div>
-                          <span className="font-bold text-slate-800">{student.name}</span>
+                return (
+                  <tr key={student.id ?? idx} className="gm-row">
+                    <td className="gm-td gm-td--name">
+                      <div className="gm-student-info">
+                        <div className="gm-avatar" style={{ backgroundColor: themeColor }}>
+                          {(student.name || 'S').charAt(0).toUpperCase()}
                         </div>
-                      </td>
+                        <div>
+                          <p className="gm-student-name">{student.name}</p>
+                          <p className="gm-student-id">{student.student_number}</p>
+                        </div>
+                      </div>
+                    </td>
 
-                      {/* Grade Input Fields */}
-                      {categories.map(cat => (
-                        <td key={cat.key} className="px-3 py-2.5">
-                          <input
-                            type="number"
-                            step={cat.key.includes('college') ? '0.25' : '1'}
-                            min="0"
-                            max={teacherLevel === 'K12' ? 100 : 4}
-                            value={student[cat.key] || 0}
-                            onChange={e => handleInputChange(student.id, cat.key, e.target.value)}
-                            className="w-14 mx-auto block p-1.5 bg-white/50 backdrop-blur-sm border border-white rounded-md text-center font-bold text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all shadow-sm hover:bg-white/80"
-                          />
-                        </td>
-                      ))}
-
-                      {/* Final Grade */}
-                      <td className="px-5 py-2.5 text-center font-black text-sm text-slate-800 drop-shadow-sm">
-                        {final}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="px-5 py-2.5 text-center">
-                        <Badge
-                          text={status}
-                          variant={status === 'Passed' ? 'success' : 'error'}
+                  {categories.map(cat => (
+                      <td key={cat.key} className="gm-td gm-td--center">
+                        <input
+                          type="text"
+                          inputMode="numeric" /* Ilalabas nito ang number pad sa mobile */
+                          placeholder="0"
+                          value={student[cat.key] === 0 ? '' : (student[cat.key] ?? '')}
+                          onChange={e => handleInputChange(student.id, cat.key, e.target.value)}
+                          onBlur={e => handleInputBlur(student.id, cat.key, e.target.value)}
+                          onFocus={e => e.target.select()} /* Auto-highlight kapag kinlik */
+                          className="gm-input"
+                          style={{ '--focus-color': themeColor }}
                         />
                       </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                    ))}
+
+                    <td className="gm-td gm-td--center">
+                      <span className={`gm-final ${passed ? 'gm-final--pass' : 'gm-final--fail'}`}>
+                        {final}
+                      </span>
+                    </td>
+                    <td className="gm-td gm-td--center">
+                      <span className={`gm-badge ${passed ? 'gm-badge--pass' : 'gm-badge--fail'}`}>
+                        {status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Table footer */}
+        <div className="gm-table-footer">
+          Showing {filteredStudents.length} of {students.length} student
+          {students.length !== 1 ? 's' : ''}
+          {classInfo?.school_year ? ` · School Year ${classInfo.school_year}` : ''}
+        </div>
       </div>
     </div>
   );
