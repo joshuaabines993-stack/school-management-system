@@ -3,7 +3,7 @@ import {
   Save, ArrowLeft, CheckCircle, AlertCircle,
   GraduationCap, ClipboardCheck, BookOpen,
   Users, Award, TrendingUp,
-  Search, Filter, RefreshCw,
+  Search, Filter, RefreshCw, Lock,
 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -16,6 +16,7 @@ import {
   normaliseStudent,
   buildStudentPayload,
   clampGrade,
+  computeWrittenFromActivities,  // NEW
 } from '../../utils/gradingUtils';
 import { gradeStyles } from '../../components/shared/GradeManagementStyles';
 
@@ -79,7 +80,6 @@ const GradeManagementSkeleton = ({ themeColor }) => (
       borderRadius: '1.25rem', padding: '1.5rem',
       border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 8px 32px rgba(0,0,0,0.05)'
     }}>
-      {/* Toolbar skeleton */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div className="gm-sk" style={{ width: '260px', height: '40px', borderRadius: '0.75rem' }} />
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -89,25 +89,14 @@ const GradeManagementSkeleton = ({ themeColor }) => (
         </div>
       </div>
 
-      {/* Table header */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr) 1fr 1fr',
-        gap: '0.75rem', paddingBottom: '0.75rem',
-        borderBottom: '1.5px solid rgba(0,0,0,0.05)', marginBottom: '0.5rem'
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr) 1fr 1fr', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1.5px solid rgba(0,0,0,0.05)', marginBottom: '0.5rem' }}>
         {[1, 2, 3, 4, 5, 6, 7].map(n => (
           <div key={n} className="gm-sk" style={{ height: '14px', width: n === 1 ? '60%' : '50%', margin: n !== 1 ? '0 auto' : '0' }} />
         ))}
       </div>
 
-      {/* Table rows */}
       {[1, 2, 3, 4, 5, 6, 7].map(n => (
-        <div key={n} style={{
-          display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr) 1fr 1fr',
-          gap: '0.75rem', padding: '0.85rem 0',
-          borderBottom: '1px solid rgba(0,0,0,0.04)', alignItems: 'center'
-        }}>
-          {/* Student cell */}
+        <div key={n} style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr) 1fr 1fr', gap: '0.75rem', padding: '0.85rem 0', borderBottom: '1px solid rgba(0,0,0,0.04)', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="gm-sk" style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0 }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -115,17 +104,14 @@ const GradeManagementSkeleton = ({ themeColor }) => (
               <div className="gm-sk" style={{ width: '70px', height: '11px' }} />
             </div>
           </div>
-          {/* Grade inputs */}
           {[1, 2, 3, 4].map(k => (
             <div key={k} style={{ display: 'flex', justifyContent: 'center' }}>
               <div className="gm-sk" style={{ width: '60px', height: '34px', borderRadius: '0.5rem' }} />
             </div>
           ))}
-          {/* Final grade */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <div className="gm-sk" style={{ width: '52px', height: '28px', borderRadius: '0.5rem' }} />
           </div>
-          {/* Remarks badge */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <div className="gm-sk" style={{ width: '65px', height: '24px', borderRadius: '2rem' }} />
           </div>
@@ -153,9 +139,16 @@ const GradeManagement = () => {
   const [searchQuery,      setSearchQuery]     = useState('');
   const [filterStatus,     setFilterStatus]    = useState('All');
 
+  // ── NEW: written-activity state ──────────────────────────────────────────────
+  // writtenActivities: array of { id, title, max_score } with category='written'
+  const [writtenActivities, setWrittenActivities] = useState([]);
+  // scoresMap: { [activity_id]: { [student_id]: score } }
+  const [scoresMap,         setScoresMap]         = useState({});
+
   const teacherLevel = getTeacherLevel(classInfo);
   const categories   = getGradingCategories(teacherLevel);
 
+  // ── Fetch grades + class meta ────────────────────────────────────────────────
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (isInitialLoad) setIsLoading(true);
     setIsRetrying(true);
@@ -182,9 +175,76 @@ const GradeManagement = () => {
     }
   }, [classId, API_BASE_URL, user?.id]);
 
+  // ── NEW: Fetch written activities + their scores for this class ──────────────
+  const fetchWrittenActivityScores = useCallback(async () => {
+    try {
+      const token   = localStorage.getItem('sms_token') || '';
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // 1. Get all 'written' activities for this class
+      const activitiesRes = await axios.get(
+        `${API_BASE_URL}/teacher/get_activities_by_class.php`,
+        { params: { class_id: classId, category: 'written' }, headers }
+      );
+
+      if (activitiesRes.data.status !== 'success') return;
+
+      const activities = activitiesRes.data.data || [];
+      setWrittenActivities(activities);
+
+      if (activities.length === 0) return;
+
+      // 2. Fetch scores for each written activity in parallel
+      const scoreRequests = activities.map(activity =>
+        axios.get(`${API_BASE_URL}/teacher/get_activity_scores.php`, {
+          params: { activity_id: activity.id },
+          headers,
+        })
+      );
+
+      const scoreResponses = await Promise.all(scoreRequests);
+
+      // 3. Build scoresMap: { [activity_id]: { [student_id]: score } }
+      const newScoresMap = {};
+      scoreResponses.forEach((res, idx) => {
+        const activityId = activities[idx].id;
+        newScoresMap[activityId] = {};
+        if (res.data.status === 'success') {
+          (res.data.scores || []).forEach(s => {
+            newScoresMap[activityId][s.student_id] = parseFloat(s.score) || 0;
+          });
+        }
+      });
+
+      setScoresMap(newScoresMap);
+    } catch (err) {
+      console.error('Failed to fetch written activity scores:', err);
+    }
+  }, [classId, API_BASE_URL]);
+
   useEffect(() => {
     if (user?.id) fetchData(true);
   }, [user?.id, fetchData]);
+
+  // Fetch written activities once classId is available
+  useEffect(() => {
+    if (classId) fetchWrittenActivityScores();
+  }, [classId, fetchWrittenActivityScores]);
+
+  // ── NEW: Re-apply computed written grades whenever scoresMap or students change
+  // This merges the auto-computed written value into each student row.
+  useEffect(() => {
+    if (writtenActivities.length === 0) return;
+
+    setStudents(prev => prev.map(s => ({
+      ...s,
+      written: computeWrittenFromActivities(
+        s.student_number || s.student_id,
+        writtenActivities,
+        scoresMap,
+      ),
+    })));
+  }, [scoresMap, writtenActivities]);
 
   const syncFromActivities = async () => {
     const isConfirmed = window.confirm(
@@ -202,6 +262,7 @@ const GradeManagement = () => {
       if (res.data.status === 'success') {
         setStatusMsg({ type: 'success', text: 'Grades synced from activities successfully!' });
         fetchData(false);
+        fetchWrittenActivityScores(); // Also refresh written scores
       } else {
         throw new Error(res.data.message || 'Sync failed');
       }
@@ -288,6 +349,9 @@ const GradeManagement = () => {
       </>
     );
   }
+
+  // ── Whether written column is auto-computed (lock it when K-12/SHS) ──────────
+  const writtenIsLocked = teacherLevel !== 'College' && writtenActivities.length > 0;
 
   return (
     <div className="gm-root">
@@ -395,10 +459,21 @@ const GradeManagement = () => {
           <table className="gm-table">
             <thead>
               <tr>
-                <th className="gm-th gm-th--name"><div className="gm-th-inner"><Users size={12} style={{ color: themeColor }} /> Student</div></th>
+                <th className="gm-th gm-th--name">
+                  <div className="gm-th-inner"><Users size={12} style={{ color: themeColor }} /> Student</div>
+                </th>
                 {categories.map(cat => (
                   <th key={cat.key} className="gm-th gm-th--center">
-                    <div className="gm-cat-header"><span className="gm-cat-label">{cat.label}</span><span className="gm-cat-pct">{cat.percentage}</span></div>
+                    <div className="gm-cat-header">
+                      <span className="gm-cat-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
+                        {/* Show lock icon on Written Work column header when auto-computed */}
+                        {cat.key === 'written' && writtenIsLocked && (
+                          <Lock size={10} color="#94a3b8" title="Auto-computed from Written Work activities" />
+                        )}
+                        {cat.label}
+                      </span>
+                      <span className="gm-cat-pct">{cat.percentage}</span>
+                    </div>
                   </th>
                 ))}
                 <th className="gm-th gm-th--center">Final Grade</th>
@@ -407,34 +482,81 @@ const GradeManagement = () => {
             </thead>
             <tbody>
               {filteredStudents.length === 0 ? (
-                <tr><td colSpan={categories.length + 3} className="gm-empty">{students.length === 0 ? 'No students enrolled.' : 'No matches found.'}</td></tr>
+                <tr>
+                  <td colSpan={categories.length + 3} className="gm-empty">
+                    {students.length === 0 ? 'No students enrolled.' : 'No matches found.'}
+                  </td>
+                </tr>
               ) : filteredStudents.map((student, idx) => {
-                const final = calculateFinalGrade(student, teacherLevel);
+                const final  = calculateFinalGrade(student, teacherLevel);
                 const status = getGradeStatus(final, teacherLevel);
                 const passed = status === 'Passed';
                 return (
                   <tr key={student.id ?? idx} className="gm-row">
                     <td className="gm-td gm-td--name">
                       <div className="gm-student-info">
-                        <div className="gm-avatar" style={{ backgroundColor: themeColor }}>{(student.name || 'S').charAt(0).toUpperCase()}</div>
-                        <div><p className="gm-student-name">{student.name}</p><p className="gm-student-id">{student.student_number}</p></div>
+                        <div className="gm-avatar" style={{ backgroundColor: themeColor }}>
+                          {(student.name || 'S').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="gm-student-name">{student.name}</p>
+                          <p className="gm-student-id">{student.student_number}</p>
+                        </div>
                       </div>
                     </td>
-                    {categories.map(cat => (
-                      <td key={cat.key} className="gm-td gm-td--center">
-                        <input
-                          type="text" inputMode="numeric" placeholder="0"
-                          value={student[cat.key] === 0 ? '' : (student[cat.key] ?? '')}
-                          onChange={e => handleInputChange(student.id, cat.key, e.target.value)}
-                          onBlur={e => handleInputBlur(student.id, cat.key, e.target.value)}
-                          onFocus={e => e.target.select()}
-                          className="gm-input"
-                          style={{ '--focus-color': themeColor }}
-                        />
-                      </td>
-                    ))}
-                    <td className="gm-td gm-td--center"><span className={`gm-final ${passed ? 'gm-final--pass' : 'gm-final--fail'}`}>{final}</span></td>
-                    <td className="gm-td gm-td--center"><span className={`gm-badge ${passed ? 'gm-badge--pass' : 'gm-badge--fail'}`}>{status}</span></td>
+
+                    {categories.map(cat => {
+                      // Lock the written column when it's auto-computed from activities
+                      const isWrittenLocked = cat.key === 'written' && writtenIsLocked;
+
+                      return (
+                        <td key={cat.key} className="gm-td gm-td--center">
+                          {isWrittenLocked ? (
+                            // ── Read-only display for auto-computed written grade ──
+                            <div
+                              title={`Auto-computed from ${writtenActivities.length} written activit${writtenActivities.length === 1 ? 'y' : 'ies'}`}
+                              style={{
+                                display:        'inline-flex',
+                                alignItems:     'center',
+                                gap:            '0.3rem',
+                                padding:        '0.3rem 0.65rem',
+                                borderRadius:   '0.5rem',
+                                background:     'rgba(148,163,184,0.1)',
+                                border:         '1px dashed #cbd5e1',
+                                fontSize:       '0.82rem',
+                                fontWeight:     700,
+                                color:          '#475569',
+                                cursor:         'default',
+                                userSelect:     'none',
+                                minWidth:       '54px',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Lock size={10} color="#94a3b8" />
+                              {student[cat.key] ?? 0}
+                            </div>
+                          ) : (
+                            // ── Editable input for all other categories ──
+                            <input
+                              type="text" inputMode="numeric" placeholder="0"
+                              value={student[cat.key] === 0 ? '' : (student[cat.key] ?? '')}
+                              onChange={e => handleInputChange(student.id, cat.key, e.target.value)}
+                              onBlur={e => handleInputBlur(student.id, cat.key, e.target.value)}
+                              onFocus={e => e.target.select()}
+                              className="gm-input"
+                              style={{ '--focus-color': themeColor }}
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
+
+                    <td className="gm-td gm-td--center">
+                      <span className={`gm-final ${passed ? 'gm-final--pass' : 'gm-final--fail'}`}>{final}</span>
+                    </td>
+                    <td className="gm-td gm-td--center">
+                      <span className={`gm-badge ${passed ? 'gm-badge--pass' : 'gm-badge--fail'}`}>{status}</span>
+                    </td>
                   </tr>
                 );
               })}
@@ -445,6 +567,11 @@ const GradeManagement = () => {
         <div className="gm-table-footer">
           Showing {filteredStudents.length} of {students.length} student{students.length !== 1 ? 's' : ''}
           {classInfo?.school_year ? ` · School Year ${classInfo.school_year}` : ''}
+          {writtenIsLocked && (
+            <span style={{ marginLeft: '0.75rem', fontSize: '0.7rem', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Lock size={10} /> Written Work auto-computed from {writtenActivities.length} activit{writtenActivities.length === 1 ? 'y' : 'ies'}
+            </span>
+          )}
         </div>
       </div>
     </div>

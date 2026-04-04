@@ -33,6 +33,7 @@ const TeacherLayout = () => {
   const getHeaderTitle = () => {
     const path = location.pathname;
     if (path.includes('/teacher/sections/')) return 'Grade Management';
+    if (path.includes('/teacher/grades/')) return 'Grade Management';
     if (path.includes('/teacher/profile')) return 'My Profile';
     if (path.includes('/teacher/announcements')) return 'Announcements';
     return path.split('/').pop()?.replace('-', ' ') || 'Dashboard';

@@ -4,27 +4,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getTeacherLevel = (classInfo) => {
-  // Default kapag naglo-load pa ang data
-  if (!classInfo) return 'K-12'; 
+  if (!classInfo) return 'K-12';
 
-  // Primary Check: Basahin mismo ang 'department' galing sa sections table
   if (classInfo.department) {
     if (classInfo.department === 'College') return 'College';
     if (classInfo.department === 'SHS') return 'SHS';
     if (classInfo.department === 'K-10') return 'K-12';
   }
 
-  // Fallback 1: level_category galing sa subjects table
   const category = (classInfo.level_category || '').toLowerCase();
   if (category === 'college') return 'College';
   if (category === 'shs') return 'SHS';
 
-  // Fallback 2: grade_level string
   const gl = (classInfo.grade_level || '').toLowerCase();
   if (gl.includes('year') || gl.includes('college')) return 'College';
   if (gl.includes('11') || gl.includes('12')) return 'SHS';
 
-  // Default fallback
   return 'JHS';
 };
 
@@ -106,7 +101,7 @@ export const buildStudentPayload = (student, level) => {
   const final   = calculateFinalGrade(student, level);
   const remarks = getGradeStatus(final, level);
   return {
-    student_id:  student.student_number || student.student_id, 
+    student_id:  student.student_number || student.student_id,
     written:     student.written,
     performance: student.performance,
     exam:        student.exam,
@@ -124,4 +119,34 @@ export const buildStudentPayload = (student, level) => {
 export const clampGrade = (value) => {
   const parsed = parseFloat(value);
   return isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+};
+
+/**
+ * Computes the Written Work grade for a student from their activity scores.
+ *
+ * Formula (DepEd): Written Work grade = (sum of scores / sum of highest possible scores) * 100
+ * Each activity contributes: (student_score / max_score).
+ *
+ * @param {string} studentId        - The student's student_id/student_number
+ * @param {Array}  writtenActivities - Array of activity objects from get_activities_by_class.php
+ *                                    Each must have: { activity_id, max_score }
+ * @param {Object} scoresMap        - Map of { [activity_id]: { [student_id]: score } }
+ *                                    Built from get_activity_scores.php responses
+ * @returns {number} - Computed written grade (0–100), rounded to 2 decimal places
+ */
+export const computeWrittenFromActivities = (studentId, writtenActivities, scoresMap) => {
+  if (!writtenActivities || writtenActivities.length === 0) return 0;
+
+  let totalScore    = 0;
+  let totalPossible = 0;
+
+  writtenActivities.forEach(activity => {
+    const maxScore      = parseFloat(activity.max_score) || 0;
+    const studentScore  = parseFloat(scoresMap?.[activity.id]?.[studentId] ?? 0);
+    totalScore    += studentScore;
+    totalPossible += maxScore;
+  });
+
+  if (totalPossible === 0) return 0;
+  return parseFloat(((totalScore / totalPossible) * 100).toFixed(2));
 };
