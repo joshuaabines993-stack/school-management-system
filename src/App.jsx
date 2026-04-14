@@ -21,7 +21,8 @@ import StudentRequests from './pages/registrar/StudentRequests'; // <--- Ito yun
 import AcademicPrograms from './pages/registrar/AcademicPrograms'; // <--- BAGONG DAGDAG
 import ScholarshipApplications from './pages/registrar/ScholarshipApplications';
 import RegistrarSubjects from './pages/registrar/RegistrarSubjects';
-import SectionManagement from './pages/registrar/SectionManagement'; // <--- BAGONG DAGDAG
+import SectionManagement from './pages/registrar/SectionManagement';
+import StudentGrades from './pages/registrar/StudentGradesView';// <--- BAGONG DAGDAG
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentAccounting from './pages/student/StudentAccounting';
@@ -36,6 +37,7 @@ import FeeCatalog from './pages/cashier/FeeCatalog';
 import Scholarships from './pages/cashier/Scholarships';
 import CollectionReports from './pages/cashier/CollectionReports';
 import ScholarshipCatalog from './pages/cashier/ScholarshipCatalog';
+import Payroll from './pages/cashier/Payroll';
 
 // Teacher Pages
 import TeacherDashboard from './pages/teacher/teacherdashboard';
@@ -125,6 +127,7 @@ function App() {
             <Route path="scholarships" element={<Scholarships />} />  
             <Route path="scholarship-catalog" element={<ScholarshipCatalog />} />
             <Route path="reports" element={<CollectionReports />} />  
+            <Route path="payroll" element={<Payroll />} />
           </Route>
 
           {/* 5. LMS / TEACHER ROUTES */}
@@ -196,6 +199,7 @@ function App() {
             <Route path="subjects" element={<RegistrarSubjects />} />
 
             <Route path="sections" element={<SectionManagement />} />
+            <Route path="grades" element={<StudentGrades />} />
             
           </Route>
 
