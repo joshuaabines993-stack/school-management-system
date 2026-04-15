@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Users, ShieldCheck, ArrowRight, Menu, X } from 'lucide-react';
+import { GraduationCap, Users, ShieldCheck, ArrowRight, Menu, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const LandingPage = () => {
@@ -8,13 +8,52 @@ const LandingPage = () => {
   const { branding, API_BASE_URL } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // ==========================================
+  // 🚀 DYNAMIC CAROUSEL STATE (MOCK DATA)
+  // Palitan ang array na ito ng "[]" para makita ang "Your Future Starts Here"
+  // ==========================================
+  const [promotions, setPromotions] = useState([
+    {
+      id: 1,
+      image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2070&auto=format&fit=crop",
+      title: "Enrollment is Now Open!",
+      subtitle: "Join the Joshua Abines School family for A.Y. 2026-2027.",
+      buttonText: "Apply Now",
+      buttonLink: "/login"
+    },
+    {
+      id: 2,
+      image: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop",
+      title: "100% Scholarship Grants",
+      subtitle: "Apply for our Academic and Athletic scholarship programs today.",
+      buttonText: "View Requirements",
+      buttonLink: "/staff/login"
+    }
+  ]);
+
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // --- CAROUSEL AUTO-PLAY LOGIC ---
+  useEffect(() => {
+    if (promotions.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev === promotions.length - 1 ? 0 : prev + 1));
+    }, 5000); // Change image every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [promotions.length]);
+
+  const nextSlide = () => setCurrentSlide((prev) => (prev === promotions.length - 1 ? 0 : prev + 1));
+  const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? promotions.length - 1 : prev - 1));
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      
       {/* Navigation Bar */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-[100] shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
-            {/* ARCHITECT FIX: Idinugtong ang Full Path */}
             {branding.school_logo && (
               <img 
                 src={`${API_BASE_URL}/uploads/branding/${branding.school_logo}`} 
@@ -27,14 +66,14 @@ const LandingPage = () => {
             </span>
           </div>
 
-          {/* DESKTOP MENU (Lilitaw lang sa md pataas) */}
+          {/* DESKTOP MENU */}
           <div className="hidden md:flex items-center space-x-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             <a href="#" className="hover:text-blue-600 transition-colors">Home</a>
             <a href="#" className="hover:text-blue-600 transition-colors">Admissions</a>
             <a href="#" className="hover:text-blue-600 transition-colors">About Us</a>
           </div>
 
-          {/* HAMBURGER BUTTON (Lilitaw lang sa mobile) */}
+          {/* HAMBURGER BUTTON */}
           <button 
             className="md:hidden p-2 text-slate-600" 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -54,26 +93,93 @@ const LandingPage = () => {
       </nav>
 
       {/* Hero Section & Portal Selection Card */}
-      <main className="flex-grow flex items-center justify-center p-6 md:p-12">
-        <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <main className="flex-grow flex items-center justify-center p-6 md:p-12 overflow-hidden">
+        <div className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
           
-          {/* Left Side: School Info */}
-          <div className="space-y-6 animate-in fade-in slide-in-from-left-8 duration-700">
-            <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full">
-              <ShieldCheck size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Official School Portal</span>
-            </div>
-            <h2 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tighter text-slate-800">
-              Your Future <br/>Starts <span style={{ color: branding.theme_color || '#2563eb' }}>Here.</span>
-            </h2>
-            <p className="text-slate-500 text-lg max-w-md leading-relaxed">
-              Experience a modern way of learning. Access your student records and school resources anywhere, anytime.
-            </p>
+          {/* =========================================================
+              LEFT SIDE: DYNAMIC CONDITIONAL RENDERING
+              ========================================================= */}
+          <div className="w-full flex flex-col justify-center min-h-[400px] lg:min-h-[500px] animate-in fade-in slide-in-from-left-8 duration-700">
+            
+            {promotions.length > 0 ? (
+              // 🟢 CONDITION 1: MAY LAMAN ANG PROMOTIONS (Show Carousel)
+              <div className="relative w-full h-[400px] lg:h-[500px] rounded-[3rem] overflow-hidden shadow-2xl group border border-slate-100">
+                
+                {/* SLIDER IMAGES & TEXT OVERLAY */}
+                {promotions.map((promo, index) => (
+                  <div 
+                    key={promo.id}
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                  >
+                    <img src={promo.image} alt={promo.title} className="w-full h-full object-cover" />
+                    
+                    {/* Dark Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent flex flex-col justify-end p-10">
+                      <h2 className="text-3xl lg:text-4xl font-black text-white mb-2 leading-tight">
+                        {promo.title}
+                      </h2>
+                      <p className="text-slate-200 font-medium mb-6 max-w-sm">
+                        {promo.subtitle}
+                      </p>
+                      {promo.buttonText && (
+                        <button 
+                          onClick={() => navigate(promo.buttonLink)} 
+                          className="w-max px-6 py-3 bg-white text-slate-900 font-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg text-sm"
+                          style={{ color: branding.theme_color || '#2563eb' }}
+                        >
+                          {promo.buttonText}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* CAROUSEL CONTROLS */}
+                {promotions.length > 1 && (
+                  <>
+                    <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                      <ChevronRight size={20} />
+                    </button>
+
+                    {/* CAROUSEL DOTS */}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                      {promotions.map((_, index) => (
+                        <button 
+                          key={index} 
+                          onClick={() => setCurrentSlide(index)}
+                          className={`w-2.5 h-2.5 rounded-full transition-all ${index === currentSlide ? 'bg-white w-6 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'bg-white/50'}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+            ) : (
+              // 🔴 CONDITION 2: WALANG PROMOTIONS (Show Default Text)
+              <div className="space-y-6">
+                <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full">
+                  <ShieldCheck size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Official School Portal</span>
+                </div>
+                <h2 className="text-5xl md:text-7xl font-black leading-[1.1] tracking-tighter text-slate-800">
+                  Your Future <br/>Starts <span style={{ color: branding.theme_color || '#2563eb' }}>Here.</span>
+                </h2>
+                <p className="text-slate-500 text-lg max-w-md leading-relaxed">
+                  Experience a modern way of learning. Access your student records and school resources anywhere, anytime.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Right Side: Portal Selection Buttons */}
-          <div className="animate-in fade-in slide-in-from-right-8 duration-700">
-            <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 p-8 md:p-10 border border-slate-100">
+          {/* =========================================================
+              RIGHT SIDE: PORTAL SELECTION CARD 
+              ========================================================= */}
+          <div className="animate-in fade-in slide-in-from-right-8 duration-700 flex justify-center lg:justify-end w-full">
+            <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 p-8 md:p-10 border border-slate-100 w-full max-w-md">
               <div className="mb-8 text-center lg:text-left">
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">Access Your Portal</h3>
                 <p className="text-slate-400 text-sm font-medium">Select your account type to continue.</p>
