@@ -102,7 +102,7 @@ const TeacherLayout = () => {
       };
 
       fetchNotifications();
-      const intervalId = setInterval(fetchNotifications, 60000); 
+      const intervalId = setInterval(fetchNotifications, 30000); 
       return () => clearInterval(intervalId);
     }
   }, [user, API_BASE_URL]);
@@ -159,19 +159,43 @@ const TeacherLayout = () => {
     } catch (err) {}
   };
 
-  const handleNotifClick = (notif) => {
-    if (notif.is_read === 0 || notif.is_read === "0" || notif.is_read === false) {
+  // 🟢 Ginawang async function para makapag-wait sa Axios
+  const handleNotifClick = async (notif) => { 
+    const isCurrentlyUnread = notif.is_read === 0 || notif.is_read === "0" || notif.is_read === false;
+    
+    if (isCurrentlyUnread) {
+      // 1. Update UI agad (Optimistic UI) para mawala agad yung blue dot
       setNotifications(prev => prev.map(n => n.id === notif.id ? {...n, is_read: 1} : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
+
+      // 2. 🟢 I-SAVE SA DATABASE ANG READ STATUS (Gamit ang mark_single_read.php)
+      try {
+        const token = localStorage.getItem('sms_token');
+        await axios.post(`${API_BASE_URL}/notifications/mark_single_read.php`, {
+          notification_id: notif.id,
+          user_id: user.id,
+          role: user.role
+        }, { headers: { Authorization: `Bearer ${token}` } });
+      } catch (error) {
+        console.error("Failed to mark read in DB", error);
+      }
     }
+
+    // 3. Buksan ang Modal at ipasa ang tamang data
     setSelectedNotif({
       id: notif.id,
       type: notif.type || 'Announcement',
       title: notif.title,
       message: notif.message,
       sender: notif.sender_name || notif.sender_role || 'Admin',
+      
+      // 🟢 Siguraduhing naipasa ang sender_role para lumabas ang reaction buttons 
+      // kung registrar o cashier ang nag-send
+      sender_role: notif.sender_role ? notif.sender_role.toLowerCase() : '',
+      
       time: notif.created_at ? new Date(notif.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
-      attachment: notif.attachment
+      attachment: notif.attachment,
+      reaction: notif.reaction
     });
   };
 
@@ -195,10 +219,15 @@ const TeacherLayout = () => {
     setActiveMenuNotif(prev => ({...prev, is_read: isCurrentlyUnread ? 1 : 0}));
   };
 
-  const filteredNotifs = notifications.filter(notif => {
-    if (notifFilter === 'all') return true;
-    return notif.is_read === 0 || notif.is_read === "0" || notif.is_read === false;
-  });
+  // 🟢 FIX: I-filter para Announcements lang at hindi kasama ang Task Reminder
+const filteredNotifs = notifications.filter(notif => {
+  // 1. Siguraduhin na HINDI Task Reminder ang type
+  if (notif.type === 'Task Reminder') return false;
+
+  // 2. I-apply ang existing filter (All vs Unread)
+  if (notifFilter === 'all') return true;
+  return notif.is_read === 0 || notif.is_read === "0" || notif.is_read === false;
+});
 
   const displayedNotifications = showAllInDropdown ? filteredNotifs : filteredNotifs.slice(0, 6);
   
@@ -241,6 +270,12 @@ const TeacherLayout = () => {
       main: path.split('/').pop()?.replace('-', ' ') || 'Dashboard', 
       sub: '' 
     };
+  };
+
+  const handleUpdateLayoutReaction = (notifId, newReaction) => {
+    setNotifications(prevNotifs => prevNotifs.map(notif => 
+      notif.id === notifId ? { ...notif, reaction: newReaction } : notif
+    ));
   };
 
   return (
@@ -570,6 +605,7 @@ const TeacherLayout = () => {
         isOpen={!!selectedNotif} 
         onClose={() => setSelectedNotif(null)} 
         notification={selectedNotif} 
+        onReactionUpdate={handleUpdateLayoutReaction}
       />
 
       {activeMenuNotif && (

@@ -76,15 +76,17 @@ const TeacherDashboard = () => {
           return isNotAll && matchesUser;
         });
         
-        const formattedTasks = reminderNotifs.slice(0, 6).map(n => ({
+       const formattedTasks = reminderNotifs.slice(0, 6).map(n => ({
           id: n.id,
           title: n.title,
           message: n.message,
           due: new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           type: n.type || 'Announcement',
           sender: n.sender_name || n.sender_role || 'Admin',
+          sender_role: n.sender_role ? n.sender_role.toLowerCase() : '',
           time: n.created_at ? new Date(n.created_at).toLocaleString() : 'Recently',
           attachment: n.attachment,
+          reaction: n.reaction, // <--- IDAGDAG ITO
           status: n.type === 'Urgent Alert' ? 'Urgent' : 
                   n.type === 'Task Reminder' ? 'Pending' : 'Announcement',
         }));
@@ -113,6 +115,12 @@ const TeacherDashboard = () => {
 
   if (isLoading) return <DashboardSkeleton themeColor={themeColor} />;
 
+  const handleUpdateReaction = (notifId, newReaction) => {
+    setTasks(prevTasks => prevTasks.map(task => 
+      task.id === notifId ? { ...task, reaction: newReaction } : task
+    ));
+  };
+
   return (
     <div className="flex flex-col lg:h-full lg:overflow-hidden pb-8 lg:pb-0">
       
@@ -125,12 +133,14 @@ const TeacherDashboard = () => {
           themeColor={themeColor} 
         />
       )}
+      
 
-      {/* 🟢 READ NOTIFICATION MODAL (ITO ANG NA-FIX) */}
+      {/* 🟢 READ NOTIFICATION MODAL */}
       <ReadNotificationModal 
         isOpen={!!selectedNotif} 
         onClose={() => setSelectedNotif(null)} 
         notification={selectedNotif} 
+        onReactionUpdate={handleUpdateReaction}
       />
 
       <div className="shrink-0 space-y-6 mb-6">
