@@ -4,7 +4,9 @@ import {
   BookOpen, Video, FileText, GraduationCap, 
   Lock, Unlock, Loader2, ArrowLeft, PlayCircle, 
   ClipboardList, MessageSquare, Info, MoreVertical,
-  HelpCircle, CheckCircle2, ShieldCheck, BarChart3
+  HelpCircle, CheckCircle2, ShieldCheck, BarChart3,
+  Calendar, Clock, Bell, Wallet, Activity, ArrowRight,
+  MonitorPlay, Timer
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +18,23 @@ const StudentLms = () => {
   const [studentData, setStudentData] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); 
   const [modules, setModules] = useState([]); 
+
+  // --- MOCK DATA FOR LMS ANALYTICS & SCHEDULING ---
+  const lmsAnalytics = {
+    totalHours: 28.5,
+    sessions: 42,
+    completionRate: 85
+  };
+
+  const scheduleToday = [
+    { time: "08:00 AM - 09:30 AM", subject: "CORE-MATH", room: "Room 101", type: "Lecture" },
+    { time: "10:00 AM - 11:30 AM", subject: "APPLIED-ECON", room: "Online Zoom", type: "Virtual" },
+  ];
+
+  const pendingTasks = [
+    { title: "Chapter 1 Quiz", subject: "CORE-MATH", due: "Today, 11:59 PM" },
+    { title: "Reaction Paper", subject: "APPLIED-ECON", due: "Tomorrow, 08:00 AM" }
+  ];
 
   const getStudentDetails = (data) => {
     const grade = (data.grade_level || "").toString().toUpperCase();
@@ -39,13 +58,7 @@ const StudentLms = () => {
         displayMain = data.section || "TBA";
     }
 
-    return { 
-        dept, 
-        displayMain, 
-        major: majorDisplay, 
-        isCollege,
-        programDesc: data.program_description || "" 
-    };
+    return { dept, displayMain, major: majorDisplay, isCollege, programDesc: data.program_description || "" };
   };
 
   const fetchData = async () => {
@@ -62,8 +75,9 @@ const StudentLms = () => {
         const isPaidFull = totalPaidOverall >= (totalAmount - 1); 
         const isPartial = totalPaidOverall > 0 && totalPaidOverall < totalAmount;
         myData.computedPaymentStatus = isPaidFull ? 'Fully Paid' : isPartial ? 'Partial Payment' : 'Unpaid';
+        myData.remainingBalance = Math.max(0, totalAmount - totalPaidOverall);
 
-        // --- 2. IMPROVED TUITION SEARCH (Flexible names like "Tuition SHS") ---
+        // --- 2. IMPROVED TUITION SEARCH ---
         const tuitionItem = billingItems.find(item => 
             item.billing_id === myData.billing_id && 
             (item.item_name.toLowerCase().includes("tuition") || item.item_name.toLowerCase().includes("tf"))
@@ -74,18 +88,13 @@ const StudentLms = () => {
         const tuitionThreshold = totalTuitionPrice * 0.5; 
 
         // --- 3. THE SMART GATEKEEPER ---
-        // Tanggapin ang "Enrolled" OR "Assessed" para hindi ma-stuck ang student
         const isValidStatus = ["Enrolled", "Assessed"].includes((myData.enrollment_status || "").trim());
-        
-        // Unlock if threshold is met OR if the overall status is already Partial/Paid
         const hasPaidThreshold = actualTuitionPaid >= (tuitionThreshold - 1);
         const isOfficiallyPaid = myData.computedPaymentStatus === 'Partial Payment' || myData.computedPaymentStatus === 'Fully Paid';
 
         if (isValidStatus && (hasPaidThreshold || isOfficiallyPaid)) {
           myData.isLmsLocked = false;
           myData.neededForUnlock = 0;
-
-          // Fetch LMS Content
           try {
               const moduleResponse = await axios.get(`${API_BASE_URL}/student/get_lms_content.php`, {
                   params: { section_id: myData.section_id }
@@ -99,7 +108,6 @@ const StudentLms = () => {
           myData.neededForUnlock = Math.max(0, tuitionThreshold - actualTuitionPaid);
         }
 
-        // Dashboard display values
         myData.displayTuition = totalTuitionPrice; 
         myData.actualTuitionPaid = actualTuitionPaid;
 
@@ -123,98 +131,118 @@ const StudentLms = () => {
     if (user?.email) fetchData();
   }, [user.email]);
 
+  const safeThemeColor = branding?.theme_color?.startsWith('#') ? branding.theme_color : '#6366f1';
+  const today = new Date();
+
+  // ==========================================
+  // LOADING STATE
+  // ==========================================
   if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center font-sans font-black animate-pulse text-slate-400 uppercase tracking-widest gap-4">
-      <Loader2 className="animate-spin text-blue-600" size={40} />
-      Verifying Credentials...
+    <div className="h-screen flex flex-col items-center justify-center font-sans font-black animate-pulse text-slate-400 uppercase tracking-widest gap-4 bg-slate-50/50">
+      <Loader2 className="animate-spin text-indigo-500" size={40} />
+      Entering Classroom...
     </div>
   );
 
+  // ==========================================
+  // LOCKED STATE (Modern & Soft)
+  // ==========================================
   if (studentData?.isLmsLocked) {
     return (
-      <div className="h-screen w-full flex items-center justify-center p-6 bg-slate-50 font-sans">
-        <div className="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl border-2 border-red-100 text-center animate-in zoom-in duration-300">
-          <div className="w-24 h-24 bg-red-500 rounded-[2rem] flex items-center justify-center text-white mx-auto mb-8 shadow-lg shadow-red-200">
-            <Lock size={48} />
+      <div className="min-h-screen w-full flex items-center justify-center p-6 bg-slate-50/50 font-sans">
+        <div className="max-w-lg w-full bg-white p-10 md:p-12 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 text-center animate-in zoom-in-95 duration-500 relative overflow-hidden">
+          
+          <div className="absolute top-0 left-0 w-full h-2 bg-slate-800"></div>
+          
+          <div className="w-20 h-20 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-800 mx-auto mb-8 border border-slate-100 shadow-sm">
+            <Lock size={32} />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4 uppercase leading-none">LMS Locked</h2>
-          <div className="text-slate-500 font-medium leading-relaxed mb-8 text-sm">
-            Paumanhin, <span className="font-black text-slate-800">{studentData?.first_name}</span>. 
-            Naka-lock ang iyong access. Mahalagang <strong className="font-bold text-slate-900">bayaran ang 50% ng Tuition Fee</strong>.
-            <br/><br/>
-            <div className="bg-red-50 p-6 rounded-[1.5rem] text-[11px] space-y-2 border border-red-100 shadow-inner">
-                <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Tuition Fee (Basis): 
-                  <span className="font-black text-slate-900 bg-white px-2 py-1 rounded shadow-sm">₱{studentData?.displayTuition?.toLocaleString()}</span>
-                </p>
-                <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Total Paid: 
-                  <span className="font-black text-emerald-600 bg-white px-2 py-1 rounded shadow-sm">₱{studentData?.actualTuitionPaid?.toLocaleString()}</span>
-                </p>
-                <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Payment Status: 
-                  <span className="font-black text-blue-600 bg-white px-2 py-1 rounded shadow-sm italic">{studentData?.computedPaymentStatus}</span>
-                </p>
-                <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider">
-                  Enrollment: 
-                  <span className="font-black text-red-600 bg-white px-2 py-1 rounded shadow-sm italic">{studentData?.enrollment_status || 'Assessed'}</span>
-                </p>
-                {studentData?.neededForUnlock > 0 && (
-                   <p className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-wider pt-2 border-t border-red-100">
-                   Kulang para ma-unlock: 
-                   <span className="font-black text-red-600 animate-pulse">₱{studentData.neededForUnlock.toLocaleString()}</span>
-                 </p>
-                )}
-            </div>
+          
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-3">LMS Access Restricted</h2>
+          <p className="text-slate-500 font-medium leading-relaxed mb-8 text-sm">
+            Hello, <span className="font-bold text-slate-700">{studentData?.first_name}</span>. Your access to the Learning Management System is currently locked. 
+            A minimum of 50% tuition payment is required to unlock your courses.
+          </p>
+          
+          <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 text-left space-y-3 mb-8">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-400 uppercase tracking-widest">Tuition Basis</span>
+                <span className="font-black text-slate-700">₱{studentData?.displayTuition?.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-400 uppercase tracking-widest">Amount Paid</span>
+                <span className="font-black text-emerald-600">₱{studentData?.actualTuitionPaid?.toLocaleString()}</span>
+              </div>
+              <div className="w-full h-px bg-slate-200 my-2"></div>
+              {studentData?.neededForUnlock > 0 && (
+                 <div className="flex justify-between items-center text-xs bg-red-50 p-3 rounded-xl border border-red-100">
+                 <span className="font-bold text-red-600 uppercase tracking-widest flex items-center gap-1"><Info size={12}/> Required to Unlock</span>
+                 <span className="font-black text-red-600 text-sm">₱{studentData.neededForUnlock.toLocaleString()}</span>
+               </div>
+              )}
           </div>
-          <button onClick={() => navigate('/student/dashboard')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95">
-            <ArrowLeft size={14} /> Back to Dashboard
+
+          <button onClick={() => navigate('/student/dashboard')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95">
+            <ArrowLeft size={14} /> Return to Dashboard
           </button>
         </div>
       </div>
     );
   }
 
+  // ==========================================
+  // INNER CATEGORY VIEW (Modules, Videos, etc.)
+  // ==========================================
   const renderClassroomView = (title, icon, color, category, typeIcon) => {
     const filteredModules = modules.filter(m => m.type === category);
     return (
-      <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in slide-in-from-right duration-500 font-sans">
-        <button onClick={() => setViewMode('grid')} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[11px] tracking-widest mb-6 hover:text-slate-900 transition-colors">
-          <ArrowLeft size={16} /> Back to Dashboard
+      <div className="max-w-[1600px] mx-auto p-4 md:p-8 animate-in slide-in-from-right duration-500 font-sans bg-slate-50/50 min-h-screen">
+        <button onClick={() => setViewMode('grid')} className="flex items-center gap-2 text-slate-500 font-black uppercase text-[10px] tracking-widest mb-6 hover:text-slate-900 transition-colors bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm w-max">
+          <ArrowLeft size={14} /> Back to LMS Hub
         </button>
-        <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
-          <div style={{ backgroundColor: color }} className="h-48 relative p-8 flex flex-col justify-end text-white">
-            <div className="absolute top-0 right-0 p-8 opacity-20">{icon}</div>
+        
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div style={{ backgroundColor: color }} className="h-40 md:h-56 relative p-8 md:p-10 flex flex-col justify-end text-white">
+            <div className="absolute top-0 right-0 p-8 opacity-20 transition-transform duration-700 hover:scale-110">{icon}</div>
             <div className="z-10">
-              <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 inline-block shadow-sm">{studentData?.dynamicDept}</span>
-              <h2 className="text-4xl font-black tracking-tighter leading-none">{title}</h2>
-              <p className="text-white/90 font-bold text-sm mt-1">
-                  {studentData?.grade_level} - {studentData?.formattedMain} {studentData?.isCollege && `(${studentData?.major})`} | SY {studentData?.school_year}
+              <span className="bg-white/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-3 inline-block backdrop-blur-sm">
+                 {studentData?.dynamicDept}
+              </span>
+              <h2 className="text-3xl md:text-5xl font-black tracking-tight leading-none drop-shadow-md">{title}</h2>
+              <p className="text-white/90 font-bold text-sm mt-2 opacity-90">
+                  {studentData?.formattedMain} {studentData?.isCollege && `(${studentData?.major})`}
               </p>
             </div>
           </div>
-          <div className="p-8">
-            <div className="space-y-4">
+          
+          <div className="p-6 md:p-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredModules.length > 0 ? (
                 filteredModules.map((mod) => (
-                  <div key={mod.id} className="flex items-start gap-5 p-6 border border-slate-100 rounded-2xl hover:shadow-xl hover:border-transparent cursor-pointer transition-all bg-white group">
-                    <div style={{ backgroundColor: color }} className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 group-hover:scale-110 transition-transform shadow-lg">{typeIcon}</div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-lg font-black text-slate-900 tracking-tight leading-tight">{mod.title}</p>
-                          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1 italic">
-                              Subject: {mod.subject_name} | Posted: {new Date(mod.created_at).toLocaleDateString()}
-                          </p>
+                  <div key={mod.id} className="p-6 border border-slate-100 rounded-[1.5rem] hover:shadow-xl hover:border-slate-200 cursor-pointer transition-all bg-white group flex flex-col justify-between min-h-[160px]">
+                    <div>
+                        <div className="flex justify-between items-start mb-4">
+                        <div style={{ backgroundColor: color }} className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md">
+                            {typeIcon}
                         </div>
-                        <MoreVertical size={20} className="text-slate-300 group-hover:text-slate-900 transition-colors" />
-                      </div>
+                        <MoreVertical size={18} className="text-slate-300 group-hover:text-slate-600 transition-colors" />
+                        </div>
+                        <h3 className="text-base font-black text-slate-800 tracking-tight leading-snug line-clamp-2">{mod.title}</h3>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            {mod.subject_name}
+                        </p>
+                        <p className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
+                            {new Date(mod.created_at).toLocaleDateString()}
+                        </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                   No {title} available for your section yet.
+                <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 border-2 border-dashed border-slate-100 rounded-[2rem]">
+                  {icon}
+                  <p className="font-bold uppercase tracking-widest text-[10px] mt-4">No {title} uploaded yet.</p>
                 </div>
               )}
             </div>
@@ -224,90 +252,135 @@ const StudentLms = () => {
     );
   };
 
-  if (viewMode === 'modules') return renderClassroomView("Learning Modules", <BookOpen size={120}/>, branding.theme_color, "Module", <FileText size={24}/>);
-  if (viewMode === 'lectures') return renderClassroomView("Video Lectures", <Video size={120}/>, "#6366f1", "Video", <PlayCircle size={24}/>);
-  if (viewMode === 'quizzes') return renderClassroomView("Quizzes & Exams", <ClipboardList size={120}/>, "#f43f5e", "Quiz", <CheckCircle2 size={24}/>);
-  if (viewMode === 'discussion') return renderClassroomView("Class Discussion", <MessageSquare size={120}/>, "#0ea5e9", "Discussion", <HelpCircle size={24}/>);
+  if (viewMode === 'modules') return renderClassroomView("Learning Modules", <BookOpen size={100}/>, safeThemeColor, "Module", <FileText size={18}/>);
+  if (viewMode === 'lectures') return renderClassroomView("Video Lectures", <Video size={100}/>, "#6366f1", "Video", <PlayCircle size={18}/>);
+  if (viewMode === 'quizzes') return renderClassroomView("Assessments", <ClipboardList size={100}/>, "#f43f5e", "Quiz", <CheckCircle2 size={18}/>);
+  if (viewMode === 'discussion') return renderClassroomView("Discussions", <MessageSquare size={100}/>, "#0ea5e9", "Discussion", <HelpCircle size={18}/>);
 
+  // ==========================================
+  // MAIN LMS DASHBOARD (The "Classroom")
+  // ==========================================
   return (
-    <div className="max-w-6xl mx-auto p-6 md:p-12 w-full space-y-10 animate-in fade-in duration-500 font-sans">
-      <header className="flex justify-between items-end">
+    <div className="max-w-[1600px] mx-auto p-4 md:p-8 w-full space-y-6 animate-in fade-in duration-500 font-sans bg-slate-50/50 min-h-screen">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-2">
         <div>
-          <div className="flex flex-wrap gap-3 mb-5">
-            <span className="bg-yellow-400 text-[#001f3f] px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md italic">
-              {studentData?.grade_level} - {studentData?.formattedMain}
-            </span>
-            <span className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md italic ${studentData?.computedPaymentStatus === 'Unpaid' ? 'bg-red-500 text-white' : studentData?.computedPaymentStatus === 'Partial Payment' ? 'bg-yellow-500 text-[#001f3f]' : 'bg-emerald-500 text-white'}`}>
-              Status: {studentData?.computedPaymentStatus}
-            </span>
-          </div>
-          <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter mb-3 leading-none">
-            Classroom <span style={{ color: branding.theme_color }}>Modules</span>
+          <button onClick={() => navigate('/student/dashboard')} className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-800 transition-colors">
+             <ArrowLeft size={14}/> Exit to Lobby
+          </button>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+             <MonitorPlay className="text-indigo-600" size={32}/> Digital Classroom
           </h1>
-          <p className="text-slate-400 font-black uppercase text-[11px] tracking-[0.4em]">
-            SY {studentData?.school_year} | {studentData?.dynamicDept}
-          </p>
         </div>
-      </header>
-
-      <div style={{ backgroundColor: branding.theme_color }} className="text-white p-8 rounded-[3rem] flex items-center gap-8 shadow-2xl relative overflow-hidden group">
-        <div className="bg-white/20 p-5 rounded-[1.5rem] shadow-inner backdrop-blur-sm group-hover:rotate-12 transition-transform duration-500">
-          <Unlock size={28} className="text-yellow-400 animate-pulse" />
-        </div>
-        <div>
-          <p className="font-black text-[11px] uppercase tracking-[0.2em] opacity-80">Portal Active</p>
-          <p className="font-black text-2xl tracking-tight">Welcome back, {studentData?.first_name}!</p>
+        <div className="flex gap-2 items-center bg-white px-4 py-2 border border-slate-200 rounded-xl shadow-sm">
+           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+           <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Online & Synced</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div onClick={() => setViewMode('modules')}><LMSCard icon={<BookOpen size={36} />} title="Learning Modules" desc={`${studentData?.grade_level} materials.`} count={`${modules.filter(m => m.type === 'Module').length} Items`} color={branding.theme_color} /></div>
-          <div onClick={() => setViewMode('lectures')}><LMSCard icon={<PlayCircle size={36} />} title="Video Lectures" desc="Watch recorded lessons." count={`${modules.filter(m => m.type === 'Video').length} Clips`} color="#6366f1" /></div>
-          <div onClick={() => setViewMode('quizzes')}><LMSCard icon={<ClipboardList size={36} />} title="Quizzes & Exams" desc="Grade assessments." count={`${modules.filter(m => m.type === 'Quiz').length} Tasks`} color="#f43f5e" /></div>
-          <div onClick={() => setViewMode('discussion')}><LMSCard icon={<MessageSquare size={36} />} title="Class Discussion" desc="Interact with class." count="Active" color="#0ea5e9" /></div>
+      {/* KPI ROW (LMS Analytics & Balance) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+         
+         {/* KPI 1: Study Time */}
+         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-5">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-[1.2rem] flex items-center justify-center shrink-0">
+               <Timer size={24}/>
+            </div>
+            <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Study Time</p>
+               <h3 className="text-2xl font-black text-slate-800 leading-none mt-1">{lmsAnalytics.totalHours} <span className="text-sm text-slate-400">hrs</span></h3>
+            </div>
+         </div>
+
+         {/* KPI 2: Sessions */}
+         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-5">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-[1.2rem] flex items-center justify-center shrink-0">
+               <Activity size={24}/>
+            </div>
+            <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">LMS Logins</p>
+               <h3 className="text-2xl font-black text-slate-800 leading-none mt-1">{lmsAnalytics.sessions} <span className="text-sm text-slate-400">sessions</span></h3>
+            </div>
+         </div>
+
+         {/* KPI 3: Completion */}
+         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-5">
+            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-[1.2rem] flex items-center justify-center shrink-0">
+               <CheckCircle2 size={24}/>
+            </div>
+            <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Task Completion</p>
+               <h3 className="text-2xl font-black text-slate-800 leading-none mt-1">{lmsAnalytics.completionRate}%</h3>
+            </div>
+         </div>
+
+         {/* KPI 4: Financial Reminder (Subtle) */}
+         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center justify-between group cursor-pointer hover:border-slate-200 transition-colors" onClick={() => navigate('/student/accounting')}>
+            <div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1"><Wallet size={12}/> Balance</p>
+               <h3 className="text-xl font-black text-slate-800 leading-none mt-1 tracking-tight">₱{studentData?.remainingBalance?.toLocaleString()}</h3>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all">
+               <ArrowRight size={14}/>
+            </div>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        {/* LEFT MAIN: Course Categories */}
+        <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div onClick={() => setViewMode('modules')}><LMSCard icon={<BookOpen size={28} />} title="Learning Modules" desc="Readings and PDFs." count={`${modules.filter(m => m.type === 'Module').length} Items`} color={safeThemeColor} /></div>
+          <div onClick={() => setViewMode('lectures')}><LMSCard icon={<PlayCircle size={28} />} title="Video Lectures" desc="Watch recorded lessons." count={`${modules.filter(m => m.type === 'Video').length} Clips`} color="#6366f1" /></div>
+          <div onClick={() => setViewMode('quizzes')}><LMSCard icon={<ClipboardList size={28} />} title="Assessments" desc="Quizzes and Exams." count={`${modules.filter(m => m.type === 'Quiz').length} Tasks`} color="#f43f5e" /></div>
+          <div onClick={() => setViewMode('discussion')}><LMSCard icon={<MessageSquare size={28} />} title="Discussions" desc="Interact with class." count="Active" color="#0ea5e9" /></div>
         </div>
 
-        <div className="space-y-8">
-          <div className="bg-white border-2 border-slate-50 p-10 rounded-[3rem] shadow-xl">
-            <h3 className="font-black text-slate-900 mb-8 uppercase text-[11px] tracking-[0.2em] flex items-center gap-3">
-              <GraduationCap size={20} className="text-emerald-500"/> Academic Profile
+        {/* RIGHT SIDEBAR: Academic Actions */}
+        <div className="xl:col-span-4 space-y-6">
+          
+          {/* Today's Schedule (LMS Version) */}
+          <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2 text-sm">
+               <Calendar size={16} className="text-indigo-500"/> Scheduled Classes Today
             </h3>
-            <div className="space-y-5">
-              <StatusItem label="Department" value={studentData?.dynamicDept} />
-              <StatusItem label={studentData?.isCollege ? "Program" : "Grade Level"} value={studentData?.isCollege ? studentData?.formattedMain : studentData?.grade_level} />
-              {studentData?.isCollege ? (
-                  <StatusItem label="Major" value={studentData?.major} />
-              ) : (
-                  <StatusItem label="Section" value={studentData?.formattedMain} />
-              )}
-              <StatusItem label="Scholarship" value={studentData?.scholarship_type || 'None'} />
-              <StatusItem label="Payment Status" value={studentData?.computedPaymentStatus} />
+            <div className="space-y-4">
+              {scheduleToday.map((sched, idx) => (
+                <div key={idx} className="flex items-start gap-3">
+                  <div className="w-2 h-2 mt-1.5 rounded-full bg-indigo-500 shrink-0"></div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 leading-tight">{sched.subject}</h4>
+                    <p className="text-xs text-slate-500 font-medium">{sched.time} • {sched.type}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden">
-            <h3 className="font-black text-white/40 mb-8 uppercase text-[11px] tracking-[0.2em] flex items-center gap-3">
-              <BarChart3 size={20} className="text-yellow-400"/> Overall Progress
-            </h3>
-            <div className="space-y-6">
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className="text-[11px] font-black text-white/30 uppercase tracking-widest mb-1">Academic GPA</p>
-                  <p className="text-4xl font-black tracking-tighter text-yellow-400">1.25</p>
-                </div>
-                <span className="text-[10px] font-black bg-white/10 px-4 py-1.5 rounded-full uppercase tracking-widest text-emerald-400 border border-emerald-400/20">Excellent</span>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                   <span className="text-white/40">Attendance</span>
-                   <span className="text-emerald-400">98%</span>
-                </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '98%' }}></div>
-                </div>
-              </div>
+
+          {/* Pending Tasks */}
+          <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+               <ClipboardList size={80}/>
+            </div>
+            <div className="relative z-10">
+               <h3 className="font-black text-white/90 mb-6 flex items-center gap-2 text-sm">
+                  <CheckCircle2 size={16} className="text-yellow-400"/> Action Required
+               </h3>
+               <div className="space-y-4">
+                  {pendingTasks.map((task, i) => (
+                    <div key={i} className="p-4 rounded-[1.5rem] bg-white/10 border border-white/5 hover:bg-white/20 transition-colors cursor-pointer">
+                       <div className="flex justify-between items-start mb-1">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-yellow-400">{task.subject}</span>
+                       </div>
+                       <h4 className="font-bold text-sm leading-tight mb-2">{task.title}</h4>
+                       <span className="inline-block px-2.5 py-1 bg-black/30 rounded-md text-[9px] font-bold text-white/70 uppercase">Due: {task.due}</span>
+                    </div>
+                  ))}
+               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -315,22 +388,20 @@ const StudentLms = () => {
 };
 
 const LMSCard = ({ icon, title, desc, count, color }) => (
-  <div className="bg-white p-10 rounded-[3rem] border-2 border-slate-50 shadow-sm hover:shadow-2xl hover:-translate-y-3 transition-all cursor-pointer group h-full flex flex-col justify-between">
-    <div>
-      <div style={{ color: color }} className="mb-8 group-hover:scale-125 transition-transform duration-500">{icon}</div>
-      <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight mb-4">{title}</h3>
-      <p className="text-slate-400 text-sm font-bold leading-relaxed">{desc}</p>
+  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group h-full flex flex-col justify-between relative overflow-hidden">
+    <div className="absolute -right-4 -top-4 opacity-5 group-hover:scale-125 transition-transform duration-700 pointer-events-none">
+       {icon}
     </div>
-    <div className="mt-8">
-       <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg uppercase tracking-widest group-hover:bg-slate-900 group-hover:text-white transition-colors">{count}</span>
+    <div className="relative z-10">
+      <div style={{ backgroundColor: color }} className="w-14 h-14 rounded-[1.2rem] flex items-center justify-center text-white mb-6 shadow-md group-hover:scale-110 transition-transform">
+         {icon}
+      </div>
+      <h3 className="text-xl font-black text-slate-900 tracking-tight leading-tight mb-2">{title}</h3>
+      <p className="text-slate-500 text-xs font-bold leading-relaxed">{desc}</p>
     </div>
-  </div>
-);
-
-const StatusItem = ({ label, value }) => (
-  <div className="flex justify-between items-center border-b border-slate-50 pb-4">
-    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-    <span className="font-black text-slate-900 tracking-tight">{value}</span>
+    <div className="mt-8 relative z-10">
+       <span className="text-[10px] font-black bg-slate-50 text-slate-500 px-3 py-1.5 rounded-xl uppercase tracking-widest group-hover:bg-slate-900 group-hover:text-white transition-colors border border-slate-100">{count}</span>
+    </div>
   </div>
 );
 
